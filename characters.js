@@ -469,10 +469,10 @@ class Player extends Character {
         }
     }
     // ===== WEAPON SWITCHING =====
-    cycleWeapon() {
+    cycleWeapon(dir = 1) {
         let start = this.currentWeapon;
         do {
-            this.currentWeapon = (this.currentWeapon + 1) % 4;
+            this.currentWeapon = (this.currentWeapon + dir + 4) % 4;
         } while (!unlockedWeapons[this.currentWeapon] && this.currentWeapon !== start);
         this.comboStep = 0; this.comboTimer = 0;
         spawnSpark(this.x + this.w / 2, this.y + this.h / 2, 8, WEAPONS[this.currentWeapon].color);

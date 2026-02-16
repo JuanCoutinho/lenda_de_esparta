@@ -88,6 +88,12 @@ window.addEventListener('mousedown', e => {
         else if (e.button === 2) player.throwSpear();
     }
 });
+window.addEventListener('wheel', e => {
+    if (gameState === 'PLAYING') {
+        e.preventDefault();
+        player.cycleWeapon(e.deltaY > 0 ? 1 : -1);
+    }
+}, { passive: false });
 
 function checkRectCollide(r1, r2) {
     return r1.x < r2.x + r2.w && r1.x + r1.w > r2.x && r1.y < r2.y + r2.h && r1.y + r1.h > r2.y;
