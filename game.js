@@ -197,10 +197,11 @@ function updateBuildUI() {
         let elEff = document.getElementById('effect-' + key);
         let elCost = document.getElementById('cost-' + key);
         let elCard = document.getElementById('build-' + key);
-        if (elLvl) elLvl.innerText = `Nível ${lvl}/3`;
+        if (elLvl) elLvl.innerText = `Nível ${lvl}`;
         if (elEff) elEff.innerText = valueStr;
-        if (lvl >= 3) { if (elCost) elCost.innerText = 'MÁXIMO'; if (elCard) elCard.classList.add('maxed'); }
-        else { if (elCost) elCost.innerText = `Custo: ${UPGRADES[key].levels[lvl]} Orbes`; }
+        if (elCard) elCard.classList.remove('maxed');
+        let cost = lvl < 3 ? UPGRADES[key].levels[lvl] : Math.floor(UPGRADES[key].levels[2] * Math.pow(1.5, lvl - 2));
+        if (elCost) elCost.innerText = `Custo: ${cost} Orbes`;
     }
 
     showUpgrade('hp', 'Vitalidade', `Atual: ${player.maxHealth} HP`);
@@ -235,23 +236,23 @@ function buyOrEquipBlessing(name) {
 
 function buyUpgrade(type) {
     let up = UPGRADES[type];
-    if (up.current >= 3) return;
-    let cost = up.levels[up.current];
+    let lvl = up.current;
+    let cost = lvl < 3 ? up.levels[lvl] : Math.floor(up.levels[2] * Math.pow(1.5, lvl - 2));
     if (playerOrbs < cost) return;
     playerOrbs -= cost;
-    let effect = up.effects[up.current];
+    let effect = lvl < 3 ? up.effects[lvl] : up.effects[2];
     up.current++;
 
     switch (type) {
         case 'hp': player.maxHealth += effect; player.health = player.maxHealth; break;
-        case 'vamp': player.vampHeal = effect; document.getElementById('icon-vamp').classList.add('active'); break;
+        case 'vamp': player.vampHeal += (lvl < 3 ? effect - (lvl > 0 ? up.effects[lvl - 1] : 0) : 10); document.getElementById('icon-vamp').classList.add('active'); break;
         case 'dmg': player.baseDmg += effect; break;
-        case 'dash': player.dashDist = effect; document.getElementById('icon-dash').classList.add('active'); break;
+        case 'dash': player.dashDist += (lvl < 3 ? effect - (lvl > 0 ? up.effects[lvl - 1] : 0) : 100); document.getElementById('icon-dash').classList.add('active'); break;
         case 'speed': player.attackSpeedBonus += effect; break;
         case 'aoe': player.aoeBonus += effect; break;
         case 'armor': player.armor += effect; break;
-        case 'regen': player.regenRate = effect; break;
-        case 'wings': player.maxJumps = 2 + effect; player.hasWings = true; document.getElementById('icon-wings').classList.add('active'); break;
+        case 'regen': player.regenRate += (lvl < 3 ? effect - (lvl > 0 ? up.effects[lvl - 1] : 0) : 1); break;
+        case 'wings': player.maxJumps += 1; player.hasWings = true; document.getElementById('icon-wings').classList.add('active'); break;
         case 'magnet': player.magnetRange += effect; break;
         case 'fury': player.furyBonus += effect; break;
     }
