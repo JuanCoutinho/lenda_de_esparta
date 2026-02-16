@@ -240,6 +240,171 @@ class Boss extends Character {
                 }
                 this.applyPhysics(); break;
             }
+
+            case 6: { // Cronos — Titan gigante
+                if (this.x < player.x) this.vx += 0.1; else this.vx -= 0.1;
+
+                // Ground slam — shockwaves
+                if (this.attackCooldown <= 0) {
+                    let rocks = this.phase === 3 ? 10 : this.phase === 2 ? 7 : 4;
+                    for (let i = -rocks; i <= rocks; i++) {
+                        enemyProjectiles.push(new EnemyProjectile(
+                            this.x + this.w / 2, this.y + this.h,
+                            i * 3, -5 - Math.random() * 3, 22, '#886644'));
+                    }
+                    camera.shake = 18;
+                    spawnDamageNumber(this.x + this.w / 2, this.y - 20, 'TERREMOTO!', '#cc8844');
+                    this.attackCooldown = Math.floor(70 * rate);
+                }
+
+                // Melee crush
+                if (d < 90) {
+                    if (this.patternTimer % Math.floor(30 * rate) === 0) {
+                        player.takeDamage(30);
+                        camera.shake = 15;
+                        spawnSlash(this.x + this.w / 2, this.y + this.h / 2, toPlayer, 100, '#aa7744');
+                    }
+                }
+
+                // Phase 2: rock rain from sky
+                if (this.phase >= 2 && this.patternTimer % Math.floor(90 * rate) === 0) {
+                    for (let i = 0; i < 5; i++) {
+                        let rx = player.x + (Math.random() - 0.5) * 400;
+                        enemyProjectiles.push(new EnemyProjectile(rx, this.y - 300, 0, 6 + Math.random() * 3, 25, '#887766'));
+                    }
+                    spawnDamageNumber(this.x + this.w / 2, this.y - 40, 'ROCHAS!', '#aa8866');
+                }
+
+                // Phase 3: summon titans + healing
+                if (this.phase === 3 && this.specialTimer <= 0) {
+                    // Summon two powerful enemies
+                    for (let i = -1; i <= 1; i += 2) {
+                        let ex = this.x + i * 150;
+                        enemies.push(new Enemy(ex, this.y + 15, 'CICLOPE'));
+                        spawnSpark(ex + 15, this.y + 40, 12, '#886644');
+                    }
+                    // Small heal
+                    this.health = Math.min(this.maxHealth, this.health + this.maxHealth * 0.03);
+                    spawnSpark(this.x + this.w / 2, this.y + this.h / 2, 15, '#ffaa44');
+                    spawnDamageNumber(this.x + this.w / 2, this.y - 30, 'TITÃS!', '#ffaa44');
+                    this.specialTimer = Math.floor(300 * rate);
+                }
+                this.applyPhysics(); break;
+            }
+
+            case 7: { // ZEUS — O DESAFIO SUPREMO
+                // Zeus is fast and aggressive
+                let chaseSpeed = this.phase === 3 ? 0.6 : this.phase === 2 ? 0.45 : 0.3;
+                if (this.x < player.x) this.vx += chaseSpeed; else this.vx -= chaseSpeed;
+
+                // ===== RAIOS DIRECIONADOS =====
+                if (this.attackCooldown <= 0) {
+                    let bolts = this.phase === 3 ? 8 : this.phase === 2 ? 5 : 3;
+                    for (let i = 0; i < bolts; i++) {
+                        let a = toPlayer + (i - Math.floor(bolts / 2)) * 0.3;
+                        let spd = 9 + this.phase * 2;
+                        enemyProjectiles.push(new EnemyProjectile(
+                            this.x + this.w / 2, this.y + 20,
+                            Math.cos(a) * spd, Math.sin(a) * spd, 20, '#ffee44'));
+                    }
+                    spawnSpark(this.x + this.w / 2, this.y + 20, 10, '#ffee44');
+                    camera.shake = 8;
+                    this.attackCooldown = Math.floor(45 * rate);
+                }
+
+                // ===== MELEE DIVINO =====
+                if (d < 80) {
+                    if (this.patternTimer % Math.floor(20 * rate) === 0) {
+                        player.takeDamage(28);
+                        camera.shake = 12;
+                        spawnSlash(this.x + this.w / 2, this.y + this.h / 2, toPlayer, 90, '#ffd700');
+                        // Knockback
+                        player.vx = Math.cos(toPlayer) * 12;
+                        player.vy = -8;
+                    }
+                }
+
+                // ===== TEMPESTADE DE RAIOS (caem do céu) =====
+                if (this.patternTimer % Math.floor(60 * rate) === 0) {
+                    let strikes = this.phase === 3 ? 6 : this.phase === 2 ? 4 : 2;
+                    for (let i = 0; i < strikes; i++) {
+                        let sx = player.x + (Math.random() - 0.5) * 500;
+                        enemyProjectiles.push(new EnemyProjectile(sx, this.y - 400, 0, 14 + Math.random() * 4, 18, '#ffdd00'));
+                        // Visual lightning spark at origin
+                        spawnSpark(sx, this.y - 400, 5, '#fff');
+                    }
+                }
+
+                // ===== PHASE 2: TELEPORTE + RELÂMPAGO CIRCULAR =====
+                if (this.phase >= 2 && this.patternTimer % Math.floor(80 * rate) === 0) {
+                    // Teleport behind player
+                    spawnSpark(this.x + this.w / 2, this.y + this.h / 2, 20, '#ffd700');
+                    this.x = player.x + (this.facingRight ? -150 : 150);
+                    spawnSpark(this.x + this.w / 2, this.y + this.h / 2, 20, '#ffd700');
+                    spawnDamageNumber(this.x + this.w / 2, this.y - 30, 'TROVÃO!', '#ffee44');
+                    camera.shake = 10;
+                    // Circular lightning burst after teleport
+                    for (let i = 0; i < 8; i++) {
+                        let a = (Math.PI * 2 / 8) * i;
+                        enemyProjectiles.push(new EnemyProjectile(
+                            this.x + this.w / 2, this.y + this.h / 2,
+                            Math.cos(a) * 7, Math.sin(a) * 7, 16, '#ffee44'));
+                    }
+                }
+
+                // ===== CAMPO ELÉTRICO (Phase 2+) =====
+                if (this.phase >= 2 && d < 150 && this.patternTimer % 5 === 0) {
+                    // Constant electric field damage when close
+                    if (Math.random() < 0.3) {
+                        player.takeDamage(3);
+                        spawnSpark(player.x + player.w / 2, player.y + player.h / 2, 2, '#ffee44');
+                    }
+                }
+
+                // ===== PHASE 3: FÚRIA DIVINA =====
+                if (this.phase === 3) {
+                    // Mega lightning slam — shockwave
+                    if (this.specialTimer <= 0) {
+                        // Ground slam creating waves
+                        for (let i = -6; i <= 6; i++) {
+                            enemyProjectiles.push(new EnemyProjectile(
+                                this.x + this.w / 2, this.y + this.h,
+                                i * 5, -3, 22, '#ffd700'));
+                        }
+                        // Vertical lightning pillars
+                        for (let i = 0; i < 4; i++) {
+                            let px = player.x + (i - 1.5) * 120;
+                            for (let j = 0; j < 5; j++) {
+                                enemyProjectiles.push(new EnemyProjectile(px, this.y - 350 + j * 60, 0, 10, 15, '#ffee44'));
+                            }
+                        }
+                        camera.shake = 20;
+                        spawnDamageNumber(this.x + this.w / 2, this.y - 50, 'FÚRIA DIVINA!', '#ffd700');
+                        this.specialTimer = Math.floor(180 * rate);
+                    }
+
+                    // Healing from divine power
+                    if (this.patternTimer % 300 === 0) {
+                        this.health = Math.min(this.maxHealth, this.health + this.maxHealth * 0.04);
+                        spawnSpark(this.x + this.w / 2, this.y + this.h / 2, 20, '#ffd700');
+                        spawnDamageNumber(this.x + this.w / 2, this.y - 20, 'DIVINO!', '#ffd700');
+                    }
+
+                    // Orbiting lightning orbs
+                    if (this.patternTimer % 150 === 0) {
+                        for (let i = 0; i < 10; i++) {
+                            let a = (Math.PI * 2 / 10) * i;
+                            let r = 120;
+                            enemyProjectiles.push(new EnemyProjectile(
+                                this.x + this.w / 2 + Math.cos(a) * r,
+                                this.y + this.h / 2 + Math.sin(a) * r,
+                                Math.cos(a + Math.PI / 2) * 5,
+                                Math.sin(a + Math.PI / 2) * 5, 14, '#ffcc00'));
+                        }
+                    }
+                }
+                this.applyPhysics(); break;
+            }
         }
     }
 
@@ -255,8 +420,8 @@ class Boss extends Character {
 
         if (this.flash > 0) { this.flash--; ctx.fillStyle = '#fff'; }
         else {
-            const bossColors = ['#2a6b2a', '#8b3a2a', '#5a5a7a', '#993300', '#cc0000'];
-            ctx.fillStyle = bossColors[this.zone - 1];
+            const bossColors = ['#2a6b2a', '#8b3a2a', '#5a5a7a', '#993300', '#cc0000', '#664422', '#daa520'];
+            ctx.fillStyle = bossColors[this.zone - 1] || '#daa520';
         }
         ctx.fillRect(dx, dy, this.w, this.h);
 
@@ -311,6 +476,88 @@ class Boss extends Character {
                 if (this.phase >= 2) { // Second sword
                     ctx.fillRect(dx + this.w / 2 - swd * 30, dy + 18, 6, 45);
                 }
+                break;
+            case 6: // Cronos
+                // Massive rocky body
+                ctx.fillStyle = '#554433';
+                ctx.fillRect(dx - 10, dy - 10, this.w + 20, this.h + 10);
+                // Rocky texture cracks
+                ctx.strokeStyle = '#443322'; ctx.lineWidth = 2;
+                for (let c = 0; c < 4; c++) {
+                    ctx.beginPath();
+                    ctx.moveTo(dx + c * 18, dy + 10);
+                    ctx.lineTo(dx + c * 18 + 8, dy + this.h - 5);
+                    ctx.stroke();
+                }
+                // Glowing cracks (phase dependent)
+                if (this.phase >= 2) {
+                    ctx.strokeStyle = '#ff6600'; ctx.lineWidth = 1;
+                    ctx.shadowBlur = 8; ctx.shadowColor = '#ff4400';
+                    for (let c = 0; c < 3; c++) {
+                        ctx.beginPath();
+                        ctx.moveTo(dx + 10 + c * 20, dy + 5);
+                        ctx.lineTo(dx + 15 + c * 20, dy + this.h / 2);
+                        ctx.lineTo(dx + 8 + c * 20, dy + this.h);
+                        ctx.stroke();
+                    }
+                    ctx.shadowBlur = 0;
+                }
+                // Eyes
+                ctx.fillStyle = this.phase === 3 ? '#ff0000' : '#ff6600';
+                ctx.fillRect(dx + 15, dy + 15, 10, 8);
+                ctx.fillRect(dx + this.w - 25, dy + 15, 10, 8);
+                break;
+            case 7: // Zeus
+                // Divine golden body
+                ctx.fillStyle = '#ffd700';
+                // Crown
+                ctx.beginPath();
+                ctx.moveTo(dx + 10, dy);
+                ctx.lineTo(dx + 15, dy - 18);
+                ctx.lineTo(dx + 25, dy - 5);
+                ctx.lineTo(dx + 35, dy - 22);
+                ctx.lineTo(dx + 45, dy - 5);
+                ctx.lineTo(dx + 55, dy - 18);
+                ctx.lineTo(dx + 60, dy);
+                ctx.fill();
+                // Robe / body detail
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(dx + 15, dy + 15, this.w - 30, this.h - 25);
+                ctx.fillStyle = '#daa520';
+                ctx.fillRect(dx + 10, dy + 10, 5, this.h - 15);
+                ctx.fillRect(dx + this.w - 15, dy + 10, 5, this.h - 15);
+                // Lightning bolt (weapon)
+                let zd2 = this.facingRight ? 1 : -1;
+                ctx.fillStyle = '#ffee44';
+                ctx.shadowBlur = 15; ctx.shadowColor = '#ffee44';
+                ctx.beginPath();
+                let bx = dx + this.w / 2 + zd2 * 35;
+                ctx.moveTo(bx, dy + 10); ctx.lineTo(bx + 5, dy + 30);
+                ctx.lineTo(bx - 3, dy + 30); ctx.lineTo(bx + 3, dy + 55);
+                ctx.lineTo(bx - 8, dy + 25); ctx.lineTo(bx, dy + 25);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                // Electric aura
+                if (this.phase >= 2) {
+                    let eAura = Math.sin(Date.now() / 80) * 0.2 + 0.3;
+                    ctx.globalAlpha = eAura;
+                    ctx.strokeStyle = '#ffee44'; ctx.lineWidth = 2;
+                    for (let ea = 0; ea < 6; ea++) {
+                        let angle = (Math.PI * 2 / 6) * ea + Date.now() / 200;
+                        let er = 50 + Math.sin(Date.now() / 100 + ea) * 10;
+                        ctx.beginPath();
+                        ctx.moveTo(dx + this.w / 2 + Math.cos(angle) * er, dy + this.h / 2 + Math.sin(angle) * er);
+                        ctx.lineTo(dx + this.w / 2 + Math.cos(angle + 0.3) * (er - 15), dy + this.h / 2 + Math.sin(angle + 0.3) * (er - 15));
+                        ctx.stroke();
+                    }
+                    ctx.globalAlpha = 1;
+                }
+                // Eyes — divine glow
+                ctx.fillStyle = '#fff';
+                ctx.shadowBlur = 10; ctx.shadowColor = '#ffee44';
+                ctx.fillRect(dx + 20, dy + 20, 8, 6);
+                ctx.fillRect(dx + this.w - 28, dy + 20, 8, 6);
+                ctx.shadowBlur = 0;
                 break;
         }
 

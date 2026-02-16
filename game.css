@@ -178,7 +178,8 @@ canvas {
 
 #start-screen,
 #game-over-screen,
-#victory-screen {
+#victory-screen,
+#dlc-victory-screen {
     position: absolute;
     top: 0;
     left: 0;
@@ -446,4 +447,16 @@ h1 {
 
 #zone-transition .subtitle {
     animation: fadeIn 1.5s;
+}
+
+@keyframes pulse-glow {
+
+    0%,
+    100% {
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+    }
+
+    50% {
+        box-shadow: 0 0 35px rgba(255, 215, 0, 1), 0 0 60px rgba(255, 140, 0, 0.5);
+    }
 }

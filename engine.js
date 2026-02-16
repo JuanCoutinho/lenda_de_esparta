@@ -13,6 +13,7 @@ let gameState = 'START';
 let enemies = [], particles = [], projectiles = [], platforms = [], pickups = [], orbs = [];
 let nextSpawnX = 0, lastPlatformY = 0;
 let currentZone = 1, zoneStartX = 0, bossSpawned = false, currentBoss = null;
+let dlcActive = false;
 let playerOrbs = 0;
 let enemyProjectiles = [];
 let damageNumbers = [];
@@ -26,7 +27,9 @@ const ZONE_DATA = [
     { name: 'Templo de Atena', bg1: '#0d0a05', bg2: '#1a1510', bossName: 'MINOTAURO REI', bossHP: 780 },
     { name: 'Mar Egeu', bg1: '#030a15', bg2: '#0a1525', bossName: 'CICLOPE ANCIÃO', bossHP: 1050 },
     { name: 'Submundo', bg1: '#150500', bg2: '#1a0800', bossName: 'QUIMERA PRIMORDIAL', bossHP: 1300 },
-    { name: 'Monte Olimpo', bg1: '#0f0f20', bg2: '#151530', bossName: 'ARES', bossHP: 1800 }
+    { name: 'Monte Olimpo', bg1: '#0f0f20', bg2: '#151530', bossName: 'ARES', bossHP: 1800 },
+    { name: 'Portões do Olimpo', bg1: '#0a0a2a', bg2: '#12123a', bossName: 'CRONOS', bossHP: 2200 },
+    { name: 'Trono de Zeus', bg1: '#1a1000', bg2: '#2a1a05', bossName: 'ZEUS, REI DOS DEUSES', bossHP: 3500 }
 ];
 
 const UPGRADES = {

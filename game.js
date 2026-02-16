@@ -8,7 +8,9 @@ function getEnemyTypeForZone(zone) {
         2: ['SKELETON', 'HARPY', 'MINOTAURO', 'MEDUSA'],
         3: ['SKELETON', 'HARPY', 'MINOTAURO', 'CICLOPE', 'ESPARTANO'],
         4: ['HARPY', 'MINOTAURO', 'CENTAURO', 'QUIMERA', 'ESPARTANO'],
-        5: ['ESPARTANO', 'CENTAURO', 'QUIMERA', 'SOMBRA', 'CICLOPE']
+        5: ['ESPARTANO', 'CENTAURO', 'QUIMERA', 'SOMBRA', 'CICLOPE'],
+        6: ['ESPARTANO', 'CENTAURO', 'QUIMERA', 'SOMBRA', 'CICLOPE'],
+        7: ['SOMBRA', 'QUIMERA', 'CENTAURO', 'ESPARTANO', 'CICLOPE', 'SOMBRA']
     };
     let pool = pools[zone] || pools[1];
     return pool[Math.floor(Math.random() * pool.length)];
@@ -258,8 +260,14 @@ function buyUpgrade(type) {
 
 // ===== ZONE TRANSITION =====
 function advanceZone() {
-    if (currentZone >= 5) {
-        // Victory!
+    if (currentZone >= 7) {
+        // DLC Victory — Zeus defeated!
+        gameState = 'VICTORY';
+        document.getElementById('dlc-victory-screen').style.display = 'flex';
+        return;
+    }
+    if (currentZone >= 5 && !dlcActive) {
+        // Base game Victory — offer DLC
         gameState = 'VICTORY';
         document.getElementById('victory-screen').style.display = 'flex';
         return;
@@ -272,10 +280,18 @@ function advanceZone() {
 
     // Transition effect
     let transEl = document.getElementById('zone-transition');
-    document.getElementById('zone-trans-title').innerText = `Zona ${currentZone}`;
+    document.getElementById('zone-trans-title').innerText = currentZone >= 6 ? `⚡ DLC — Zona ${currentZone}` : `Zona ${currentZone}`;
     document.getElementById('zone-trans-sub').innerText = ZONE_DATA[currentZone - 1].name;
     transEl.style.display = 'flex';
-    setTimeout(() => { transEl.style.display = 'none'; }, 2000);
+    setTimeout(() => { transEl.style.display = 'none'; }, 2500);
+}
+
+function startDLC() {
+    dlcActive = true;
+    document.getElementById('victory-screen').style.display = 'none';
+    gameState = 'PLAYING';
+    advanceZone();
+    loop();
 }
 
 // ===== CAMERA =====
@@ -301,6 +317,7 @@ function init() {
     thrownSpear = null;
     nextSpawnX = 0; currentZone = 1; zoneStartX = 0;
     bossSpawned = false; currentBoss = null; playerOrbs = 0;
+    dlcActive = false;
     UPGRADES.hp.current = 0; UPGRADES.vamp.current = 0;
     UPGRADES.dmg.current = 0; UPGRADES.dash.current = 0;
     UPGRADES.speed.current = 0; UPGRADES.aoe.current = 0;
@@ -326,6 +343,7 @@ function init() {
     document.getElementById('start-screen').style.display = 'none';
     document.getElementById('game-over-screen').style.display = 'none';
     document.getElementById('victory-screen').style.display = 'none';
+    document.getElementById('dlc-victory-screen').style.display = 'none';
     updateWeaponHUD();
     loop();
 }
@@ -396,10 +414,12 @@ function loop() {
             else if (bossZone === 3 && !unlockedWeapons[3]) { unlockedWeapons[3] = true; dropName = '🥊 Cestus de Nemeia'; }
             else if (bossZone === 4 && !hasMedusaHead) { hasMedusaHead = true; dropName = '🐍 Cabeça de Medusa'; }
             else if (bossZone === 5 && !hasApolloBow) { hasApolloBow = true; dropName = '🏹 Arco de Apolo'; }
+            else if (bossZone === 6) { dropName = '🔥 Chama do Titã'; playerOrbs += 30; }
+            else if (bossZone === 7) { dropName = '⚡ Raio de Zeus'; }
             if (dropName) {
                 document.getElementById('item-pickup').style.display = 'flex';
                 document.getElementById('item-name').innerText = dropName;
-                document.getElementById('item-desc').innerText = bossZone <= 3 ? 'Nova arma! Troque com Q ou 1-4' : bossZone === 4 ? 'Pressione E para petrificar!' : 'Pressione R para atirar flechas!';
+                document.getElementById('item-desc').innerText = bossZone <= 3 ? 'Nova arma! Troque com Q ou 1-4' : bossZone === 4 ? 'Pressione E para petrificar!' : bossZone === 5 ? 'Pressione R para atirar flechas!' : bossZone === 6 ? '+30 Orbes! Poder dos Titãs absorvido!' : '⚡ O poder supremo é seu!';
                 gameState = 'PICKUP';
                 updateWeaponHUD();
             }
@@ -518,6 +538,42 @@ function drawFrame() {
     if (currentZone === 5 && Math.random() < 0.003) {
         ctx.fillStyle = 'rgba(200, 200, 255, 0.15)';
         ctx.fillRect(0, 0, width, height);
+    }
+    // Zone 6 cosmic glow
+    if (currentZone === 6) {
+        ctx.fillStyle = `rgba(80, 60, 200, ${0.05 + Math.sin(Date.now() / 800) * 0.03})`;
+        ctx.fillRect(0, 0, width, height);
+        // Floating cosmic particles
+        if (Math.random() < 0.02) {
+            let sx = Math.random() * width, sy = Math.random() * height * 0.5;
+            ctx.fillStyle = 'rgba(150, 130, 255, 0.3)';
+            ctx.beginPath(); ctx.arc(sx, sy, Math.random() * 3 + 1, 0, Math.PI * 2); ctx.fill();
+        }
+    }
+    // Zone 7 constant lightning storm
+    if (currentZone === 7) {
+        // Golden storm sky
+        ctx.fillStyle = `rgba(255, 200, 0, ${0.03 + Math.sin(Date.now() / 300) * 0.02})`;
+        ctx.fillRect(0, 0, width, height);
+        // Frequent lightning flashes
+        if (Math.random() < 0.015) {
+            ctx.fillStyle = `rgba(255, 255, 200, ${0.1 + Math.random() * 0.15})`;
+            ctx.fillRect(0, 0, width, height);
+        }
+        // Lightning bolts in background
+        if (Math.random() < 0.008) {
+            let lx = Math.random() * width;
+            ctx.strokeStyle = `rgba(255, 230, 100, ${0.3 + Math.random() * 0.4})`;
+            ctx.lineWidth = 2 + Math.random() * 3;
+            ctx.beginPath(); ctx.moveTo(lx, 0);
+            let ly = 0;
+            while (ly < height * 0.6) {
+                lx += (Math.random() - 0.5) * 40;
+                ly += 20 + Math.random() * 30;
+                ctx.lineTo(lx, ly);
+            }
+            ctx.stroke();
+        }
     }
 
     platforms.forEach(p => p.draw(ctx, camera.x, camera.y));
