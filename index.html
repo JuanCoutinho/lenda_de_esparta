@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lenda de Esparta: A Lança do Destino</title>
+    <link rel="stylesheet" href="game.css">
+</head>
+
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="ui-layer">
+            <div class="hud-top">
+                <div class="bar-container">
+                    <div class="bar-label">VIDA</div>
+                    <div class="bar-bg">
+                        <div id="health-fill" class="bar-fill"></div>
+                    </div>
+                </div>
+                <div class="bar-container">
+                    <div class="bar-label">IRA (Dano Extra)</div>
+                    <div class="bar-bg">
+                        <div id="mana-fill" class="bar-fill"></div>
+                    </div>
+                </div>
+                <div style="margin-left:10px; color:#ff4444; font-size:18px; align-self:center;">
+                    🔴 <span id="orb-count">0</span>
+                </div>
+                <div class="hud-right">
+                    <div class="zone-name" id="zone-name">Zona 1 — Planícies de Esparta</div>
+                    <div>DISTÂNCIA: <span id="score-dist">0</span>m</div>
+                </div>
+            </div>
+
+            <div id="ability-icons">
+                <div id="icon-wings" class="ability">🪽</div>
+                <div id="icon-dash" class="ability">💨</div>
+                <div id="icon-vamp" class="ability">🩸</div>
+                <div id="blessing-indicator" class="ability" style="opacity:1; border-color:#888; font-size:12px;">⚔️
+                </div>
+                <div id="build-btn" class="ability active" onclick="openBuildMenu()"
+                    style="cursor:pointer; font-size:11px; width:60px; text-align:center;">⚔️ FORJA</div>
+            </div>
+
+            <div id="item-pickup">
+                <h2 style="color: gold; margin: 0;">ASAS DE ÍCARO OBTIDAS!</h2>
+                <p style="color: #fff;">Pulo Duplo + Segurar ESPAÇO para planar.</p>
+                <small style="color: #aaa;">Pressione ESPAÇO no ar.</small>
+                <br><br>
+                <button class="btn" onclick="closePickup()">CONTINUAR</button>
+            </div>
+
+            <div id="boss-bar">
+                <div class="boss-name" id="boss-name">BOSS</div>
+                <div class="bar-bg">
+                    <div id="boss-bar-fill"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="build-menu">
+            <h2>⚔️ FORJA DOS DEUSES ⚔️</h2>
+            <div class="orb-display">🔴 Orbes: <span id="build-orbs">0</span></div>
+
+            <div class="build-scroll">
+                <div class="build-section-label" style="color:#d4af37;">BÊNÇÃOS DA LANÇA <span
+                        style="color:#888; font-size:12px;">(clique para equipar)</span></div>
+                <div class="build-grid">
+                    <div class="build-card power-card" id="build-zeus" onclick="buyOrEquipBlessing('zeus')">
+                        <h3>⚡ ZEUS</h3>
+                        <div class="desc">Raios encadeiam nos inimigos. Arremesso cria tempestade.</div>
+                        <div class="effect" id="effect-zeus">Não comprado</div>
+                        <div class="cost" id="cost-zeus">Custo: 20 Orbes</div>
+                    </div>
+                    <div class="build-card power-card" id="build-ares" onclick="buyOrEquipBlessing('ares')">
+                        <h3>🔥 ARES</h3>
+                        <div class="desc">Ataques explodem em chamas. Arremesso deixa trilha de fogo.</div>
+                        <div class="effect" id="effect-ares">Não comprado</div>
+                        <div class="cost" id="cost-ares">Custo: 25 Orbes</div>
+                    </div>
+                    <div class="build-card power-card" id="build-poseidon" onclick="buyOrEquipBlessing('poseidon')">
+                        <h3>❄️ POSEIDON</h3>
+                        <div class="desc">Ataques congelam inimigos. Arremesso cria onda de gelo.</div>
+                        <div class="effect" id="effect-poseidon">Não comprado</div>
+                        <div class="cost" id="cost-poseidon">Custo: 20 Orbes</div>
+                    </div>
+                </div>
+
+                <div class="build-section-label" style="color:#ff6644;">⚔️ ATAQUE</div>
+                <div class="build-grid">
+                    <div class="build-card" id="build-dmg" onclick="buyUpgrade('dmg')">
+                        <h3>⚔️ FORÇA</h3>
+                        <div class="desc">Dano da lança aumentado</div>
+                        <div class="effect" id="effect-dmg">Atual: 35 dano</div>
+                        <div class="level" id="level-dmg">Nível 0/3</div>
+                        <div class="cost" id="cost-dmg">Custo: 20 Orbes</div>
+                    </div>
+                    <div class="build-card" id="build-speed" onclick="buyUpgrade('speed')">
+                        <h3>🗡️ VELOCIDADE</h3>
+                        <div class="desc">Ataque mais rápido</div>
+                        <div class="effect" id="effect-speed">Normal</div>
+                        <div class="level" id="level-speed">Nível 0/3</div>
+                        <div class="cost" id="cost-speed">Custo: 15 Orbes</div>
+                    </div>
+                    <div class="build-card" id="build-aoe" onclick="buyUpgrade('aoe')">
+                        <h3>💥 ALCANCE</h3>
+                        <div class="desc">Aumenta range do ataque</div>
+                        <div class="effect" id="effect-aoe">Normal</div>
+                        <div class="level" id="level-aoe">Nível 0/3</div>
+                        <div class="cost" id="cost-aoe">Custo: 20 Orbes</div>
+                    </div>
+                </div>
+
+                <div class="build-section-label" style="color:#44bb44;">🛡️ DEFESA</div>
+                <div class="build-grid">
+                    <div class="build-card" id="build-hp" onclick="buyUpgrade('hp')">
+                        <h3>❤️ VITALIDADE</h3>
+                        <div class="desc">HP Máximo +50</div>
+                        <div class="effect" id="effect-hp">Atual: 100 HP</div>
+                        <div class="level" id="level-hp">Nível 0/3</div>
+                        <div class="cost" id="cost-hp">Custo: 15 Orbes</div>
+                    </div>
+                    <div class="build-card" id="build-armor" onclick="buyUpgrade('armor')">
+                        <h3>🛡️ ARMADURA</h3>
+                        <div class="desc">Reduz dano recebido</div>
+                        <div class="effect" id="effect-armor">0% redução</div>
+                        <div class="level" id="level-armor">Nível 0/3</div>
+                        <div class="cost" id="cost-armor">Custo: 20 Orbes</div>
+                    </div>
+                    <div class="build-card" id="build-regen" onclick="buyUpgrade('regen')">
+                        <h3>💚 REGENERAÇÃO</h3>
+                        <div class="desc">Regen passivo de HP</div>
+                        <div class="effect" id="effect-regen">0 HP/seg</div>
+                        <div class="level" id="level-regen">Nível 0/3</div>
+                        <div class="cost" id="cost-regen">Custo: 25 Orbes</div>
+                    </div>
+                </div>
+
+                <div class="build-section-label" style="color:#88ccff;">🦅 MOBILIDADE</div>
+                <div class="build-grid grid-2">
+                    <div class="build-card" id="build-dash" onclick="buyUpgrade('dash')">
+                        <h3>💨 DASH</h3>
+                        <div class="desc">Dash com Shift (i-frames!)</div>
+                        <div class="effect" id="effect-dash">Bloqueado</div>
+                        <div class="level" id="level-dash">Nível 0/3</div>
+                        <div class="cost" id="cost-dash">Custo: 20 Orbes</div>
+                    </div>
+                    <div class="build-card" id="build-wings" onclick="buyUpgrade('wings')">
+                        <h3>🦅 ASAS+</h3>
+                        <div class="desc">Pulos extras e controle aéreo</div>
+                        <div class="effect" id="effect-wings">Normal</div>
+                        <div class="level" id="level-wings">Nível 0/3</div>
+                        <div class="cost" id="cost-wings">Custo: 30 Orbes</div>
+                    </div>
+                </div>
+
+                <div class="build-section-label" style="color:#ffaa44;">🔧 UTILIDADE</div>
+                <div class="build-grid">
+                    <div class="build-card" id="build-vamp" onclick="buyUpgrade('vamp')">
+                        <h3>🩸 VAMPIRISMO</h3>
+                        <div class="desc">Cura HP ao matar</div>
+                        <div class="effect" id="effect-vamp">0 HP/kill</div>
+                        <div class="level" id="level-vamp">Nível 0/3</div>
+                        <div class="cost" id="cost-vamp">Custo: 20 Orbes</div>
+                    </div>
+                    <div class="build-card" id="build-magnet" onclick="buyUpgrade('magnet')">
+                        <h3>🧲 MAGNETISMO</h3>
+                        <div class="desc">Orbes atraídas de mais longe</div>
+                        <div class="effect" id="effect-magnet">120px range</div>
+                        <div class="level" id="level-magnet">Nível 0/3</div>
+                        <div class="cost" id="cost-magnet">Custo: 10 Orbes</div>
+                    </div>
+                    <div class="build-card" id="build-fury" onclick="buyUpgrade('fury')">
+                        <h3>⏰ IRA INFINITA</h3>
+                        <div class="desc">IRA carrega mais rápido</div>
+                        <div class="effect" id="effect-fury">Normal</div>
+                        <div class="level" id="level-fury">Nível 0/3</div>
+                        <div class="cost" id="cost-fury">Custo: 15 Orbes</div>
+                    </div>
+                </div>
+            </div>
+
+            <br>
+            <button class="btn" onclick="closeBuildMenu()">FECHAR (B)</button>
+        </div>
+
+        <div id="zone-transition">
+            <h1 id="zone-trans-title"></h1>
+            <div class="subtitle" id="zone-trans-sub"></div>
+        </div>
+
+        <div id="start-screen">
+            <h1>A Lança de Esparta</h1>
+            <div class="subtitle">A Jornada do Fantasma de Esparta</div>
+            <button class="btn" onclick="startGame()">EMPUXAR LANÇA</button>
+            <div class="controls">
+                <p><span class="key">A</span> <span class="key">D</span> Mover | <span class="key">W</span> Escalar</p>
+                <p><span class="key">ESPAÇO</span> Pular | <span class="key">SHIFT</span> Dash</p>
+                <p>🖱️ <span class="key">ESQ</span> Combo (3 golpes!) | 🖱️ <span class="key">DIR</span> Arremessar
+                    Lança</p>
+                <p>⚔️ Lance a lança na parede e pule nela para escalar!</p>
+                <p>🔨 Clique FORJA no HUD para bênçãos divinas</p>
+            </div>
+        </div>
+
+        <div id="game-over-screen" style="display: none;">
+            <h1 style="color: #8b0000;">MORTE</h1>
+            <p style="color: gold; font-size: 20px;">Você percorreu: <span id="final-dist">0</span> metros</p>
+            <button class="btn" onclick="resetGame()">RENASCER</button>
+        </div>
+
+        <div id="victory-screen" style="display: none;">
+            <h1 style="color: #ffd700;">⚡ VITÓRIA ⚡</h1>
+            <p style="color: #fff; font-size: 22px;">O Fantasma de Esparta triunfou!</p>
+            <p style="color: #d4af37; font-size: 18px;">Ares foi derrotado. O Olimpo se curva.</p>
+            <button class="btn" onclick="resetGame()">JOGAR NOVAMENTE</button>
+        </div>
+    </div>
+
+    <script src="engine.js"></script>
+    <script src="characters.js"></script>
+    <script src="boss.js"></script>
+    <script src="game.js"></script>
+</body>
+
+</html>
