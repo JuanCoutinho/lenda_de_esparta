@@ -16,9 +16,9 @@ class Character {
     checkHorizontalCollisions() {
         for (let p of platforms) {
             if (checkRectCollide(this, p)) {
-                if (this.vx > 0) this.x = p.x - this.w;
-                else if (this.vx < 0) this.x = p.x + p.w;
-                this.vx = 0;
+                // If moving into a wall, stop
+                if (this.vx > 0) { this.x = p.x - this.w; this.vx = 0; }
+                else if (this.vx < 0) { this.x = p.x + p.w; this.vx = 0; }
             }
         }
     }
@@ -691,61 +691,120 @@ class Player extends Character {
         let bobY = 0;
         if (this.isGrounded && Math.abs(this.vx) > 0.5) bobY = Math.sin(this.walkTimer * 0.5) * 2;
 
+        // --- DASH GHOSTS ---
+        if (this.isDashing) {
+            for (let i = 1; i <= 3; i++) {
+                ctx.globalAlpha = 0.15 * (4 - i); ctx.fillStyle = '#88ccff';
+                let offX = f * -i * 12;
+                ctx.fillRect(dx + offX + 6, dy + 15, 18, 30);
+            }
+            ctx.globalAlpha = 1;
+        }
+
+        // --- KRATOS VISUALS (Detailed) ---
+        // Skin (Ash White)
+        ctx.fillStyle = isFlash ? '#fff' : '#e0e0e0';
+
+        // Body (Torso)
+        ctx.fillRect(dx + 6, dy + 15 + bobY, 20, 22);
+        // Head
+        ctx.fillRect(dx + 8, dy + bobY, 16, 16);
+
+        // Left Arm (Behind)
+        ctx.fillStyle = isFlash ? '#fff' : '#d0d0d0';
+        ctx.fillRect(dx + 15 - f*14, dy + 16 + bobY, 6, 16);
+        // Chains on Left Arm
+        ctx.fillStyle = '#444';
+        ctx.fillRect(dx + 14 - f*14, dy + 22 + bobY, 8, 2);
+        ctx.fillRect(dx + 14 - f*14, dy + 26 + bobY, 8, 2);
+
+        // Legs
+        let legOff = this.isGrounded && Math.abs(this.vx) > 0.5 ? Math.sin(this.walkTimer * 0.5) * 4 : 0;
+        ctx.fillStyle = isFlash ? '#fff' : '#e0e0e0';
+        // Left Leg
+        ctx.fillRect(dx + 8, dy + 45 + bobY + legOff, 7, 12);
+        // Right Leg
+        ctx.fillRect(dx + 17, dy + 45 + bobY - legOff, 7, 12);
+
+        // TATTOO (Red Stripe)
+        ctx.fillStyle = '#aa0000';
+        // Head stripe
+        ctx.beginPath();
+        ctx.moveTo(dx + 16 - f*3, dy + bobY); // Top
+        ctx.lineTo(dx + 16 - f*3, dy + 16 + bobY); // Down face
+        ctx.lineTo(dx + 16 - f*7, dy + 16 + bobY); // Curve
+        ctx.fill();
+        // Torso stripe
+        ctx.beginPath();
+        ctx.moveTo(dx + 16 - f*5, dy + 15 + bobY);
+        ctx.lineTo(dx + 16 + f*3, dy + 37 + bobY);
+        ctx.lineTo(dx + 16 - f*1, dy + 37 + bobY);
+        ctx.lineTo(dx + 16 - f*9, dy + 15 + bobY);
+        ctx.fill();
+
+        // ARMOR & KILT
+        // Spartan Kilt
+        ctx.fillStyle = '#5d4037'; // Leather
+        ctx.fillRect(dx + 5, dy + 35 + bobY, 22, 12);
+        ctx.fillStyle = '#8b0000'; // Red cloth
+        ctx.fillRect(dx + 13, dy + 35 + bobY, 6, 14);
+
+        // Golden Fleece / Shoulder (Right side)
+        ctx.fillStyle = '#ffd700';
+        ctx.beginPath();
+        ctx.moveTo(dx + 16 + f*5, dy + 15 + bobY);
+        ctx.lineTo(dx + 16 + f*14, dy + 12 + bobY);
+        ctx.lineTo(dx + 16 + f*11, dy + 24 + bobY);
+        ctx.lineTo(dx + 16 + f*2, dy + 20 + bobY);
+        ctx.fill();
+
+        // Boots
+        ctx.fillStyle = '#4e342e';
+        ctx.fillRect(dx + 7, dy + 54 + bobY + legOff, 9, 4);
+        ctx.fillRect(dx + 16, dy + 54 + bobY - legOff, 9, 4);
+
+        // Beard
+        ctx.fillStyle = '#222';
+        ctx.fillRect(dx + 16 + f*4, dy + 12 + bobY, 4, 4);
+
+        // Right Arm (Front)
+        ctx.fillStyle = isFlash ? '#fff' : '#e0e0e0';
+        ctx.fillRect(dx + 15 + f*9, dy + 16 + bobY, 6, 16);
+        // Chains on Right Arm
+        ctx.fillStyle = '#444';
+        ctx.fillRect(dx + 14 + f*9, dy + 22 + bobY, 8, 2);
+        ctx.fillRect(dx + 14 + f*9, dy + 26 + bobY, 8, 2);
+
+        // --- EXTRAS ---
+        if (this.isClimbing) { ctx.fillStyle = 'rgba(255, 200, 100, 0.6)'; ctx.fillRect(dx - 2, dy + 16, 2, 15); ctx.fillRect(dx + this.w, dy + 16, 2, 15); }
+
+        // Wings
+        if (this.isGliding || (this.hasWings && !this.isGrounded && this.jumpCount >= 2)) {
+            let wingFlap = Math.sin(Date.now() / 80) * 8;
+            ctx.fillStyle = 'rgba(255, 215, 0, 0.4)';
+            ctx.beginPath(); ctx.moveTo(centerX - 5, centerY - 15); ctx.lineTo(centerX - 40, centerY - 40 + wingFlap); ctx.lineTo(centerX - 10, centerY + 10); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(centerX + 5, centerY - 15); ctx.lineTo(centerX + 40, centerY - 40 + wingFlap); ctx.lineTo(centerX + 10, centerY + 10); ctx.fill();
+        }
+
         // Shield Aura
         if (this.shieldTimer > 0) {
             ctx.shadowBlur = 10; ctx.shadowColor = '#88aaff';
             ctx.strokeStyle = `rgba(136, 170, 255, ${0.5 + Math.sin(Date.now()/100)*0.3})`;
             ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, 35, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.shadowBlur = 0;
+            ctx.beginPath(); ctx.arc(centerX, centerY, 35, 0, Math.PI * 2); ctx.stroke(); ctx.shadowBlur = 0;
         }
 
-        // Wings
-        if (this.isGliding || (this.hasWings && !this.isGrounded && this.jumpCount >= 2)) {
-            let wingFlap = Math.sin(Date.now() / 80) * 8;
-            ctx.fillStyle = 'rgba(255, 215, 0, 0.25)';
-            ctx.beginPath(); ctx.moveTo(centerX - 2, centerY - 8); ctx.lineTo(centerX - 30, centerY - 25 + wingFlap); ctx.lineTo(centerX - 35, centerY - 10 + wingFlap); ctx.lineTo(centerX - 20, centerY + 5); ctx.fill();
-            ctx.beginPath(); ctx.moveTo(centerX + 2, centerY - 8); ctx.lineTo(centerX + 30, centerY - 25 + wingFlap); ctx.lineTo(centerX + 35, centerY - 10 + wingFlap); ctx.lineTo(centerX + 20, centerY + 5); ctx.fill();
-        }
+        this.drawWeapon(ctx, centerX, centerY);
 
-        // Dash afterimages
-        if (this.isDashing) {
-            for (let i = 1; i <= 3; i++) { ctx.globalAlpha = 0.15 * (4 - i); ctx.fillStyle = '#88ccff'; let offX = f * -i * 12; ctx.fillRect(dx + offX + 2, dy + 2, this.w - 4, 14); ctx.fillRect(dx + offX, dy + 16, this.w, 20); ctx.fillRect(dx + offX + 4, dy + 36, this.w - 8, 12); }
+        // Ira glow
+        if (this.mana > 50) {
+            ctx.globalAlpha = 0.15 + Math.sin(Date.now() / 150) * 0.08;
+            ctx.fillStyle = '#ff4400'; ctx.fillRect(dx - 3, dy - 3, this.w + 6, this.h + 6);
             ctx.globalAlpha = 1;
         }
+    }
 
-        // HEAD
-        ctx.fillStyle = isFlash ? '#fff' : '#d4ccc4';
-        ctx.fillRect(dx + 5, dy + bobY, 20, 14);
-        ctx.fillStyle = '#8b0000'; ctx.fillRect(dx + 5, dy + bobY, 20, 3);
-        ctx.fillStyle = isFlash ? '#fff' : '#ffcc00';
-        ctx.fillRect(dx + (this.facingRight ? 18 : 8), dy + 5 + bobY, 4, 3);
-        // Tattoo
-        ctx.fillStyle = '#cc0000';
-        if (this.facingRight) { ctx.fillRect(dx + 15, dy + 2 + bobY, 4, 12); ctx.fillRect(dx + 13, dy + 14 + bobY, 6, 8); }
-        else { ctx.fillRect(dx + 11, dy + 2 + bobY, 4, 12); ctx.fillRect(dx + 11, dy + 14 + bobY, 6, 8); }
-        // TORSO
-        ctx.fillStyle = isFlash ? '#fff' : '#c4b8aa'; ctx.fillRect(dx + 3, dy + 14 + bobY, 24, 18);
-        ctx.fillStyle = isFlash ? '#eee' : '#a89888';
-        ctx.fillRect(dx + 5, dy + 16 + bobY, 8, 4); ctx.fillRect(dx + 17, dy + 16 + bobY, 8, 4);
-        // BELT
-        ctx.fillStyle = isFlash ? '#ddd' : '#5d4037'; ctx.fillRect(dx + 2, dy + 32 + bobY, 26, 5);
-        ctx.fillStyle = '#d4af37'; ctx.fillRect(dx + 12, dy + 32 + bobY, 6, 5);
-        // LEGS
-        let legOff = this.isGrounded && Math.abs(this.vx) > 0.5 ? Math.sin(this.walkTimer * 0.5) * 3 : 0;
-        ctx.fillStyle = isFlash ? '#ddd' : '#6d4c3d';
-        ctx.fillRect(dx + 5, dy + 37 + bobY, 8, 11 + legOff); ctx.fillRect(dx + 17, dy + 37 + bobY, 8, 11 - legOff);
-        ctx.fillStyle = isFlash ? '#ccc' : '#3e2723';
-        ctx.fillRect(dx + 4, dy + 45 + bobY + Math.max(0, legOff), 10, 3); ctx.fillRect(dx + 16, dy + 45 + bobY + Math.max(0, -legOff), 10, 3);
-        // Arms
-        ctx.fillStyle = isFlash ? '#ddd' : '#8a7b6b';
-        ctx.fillRect(dx + (this.facingRight ? 24 : 0), dy + 16 + bobY, 6, 14);
-
-        // Climbing indicator
-        if (this.isClimbing) { ctx.fillStyle = 'rgba(255, 200, 100, 0.6)'; ctx.fillRect(dx - 2, dy + 16, 2, 15); ctx.fillRect(dx + this.w, dy + 16, 2, 15); }
-
+    drawWeapon(ctx, centerX, centerY) {
         // WEAPON DRAW (depends on currentWeapon)
         let canDrawWeapon = (this.currentWeapon === 0 || this.currentWeapon === 2) ? (thrownSpear === null && this.throwCooldown < 900) : true;
         if (canDrawWeapon) {
@@ -776,26 +835,83 @@ class Player extends Character {
                 ctx.beginPath(); ctx.moveTo(off + this.spearLength + 5, -3); ctx.lineTo(off + this.spearLength + 22, 0); ctx.lineTo(off + this.spearLength + 5, 3); ctx.fill();
             } else if (this.currentWeapon === 1) {
                 // LÂMINAS DO CAOS — dual chains with fiery blades
+                let chainLen = 0;
+                let bladeScale = 1;
+
                 if (this.attackTimer > 0) {
-                    if (this.comboStep === 1) { off = Math.sin(p * Math.PI) * 30; }
-                    else if (this.comboStep === 2) { ctx.rotate(p * Math.PI * 2); } // full spin
-                    else { off = Math.sin(p * Math.PI * 2) * 25; } // swing oscillation
-                }
-                // Chain links
-                ctx.fillStyle = '#888';
-                for (let i = 0; i < 50; i += 8) { ctx.fillRect(off + i, -1, 5, 2); }
-                // Blade 1
-                ctx.fillStyle = '#ff4400'; ctx.shadowBlur = 8; ctx.shadowColor = '#ff6600';
-                ctx.beginPath(); ctx.moveTo(off + 48, -6); ctx.lineTo(off + 68, 0); ctx.lineTo(off + 48, 6);
-                ctx.lineTo(off + 52, 0); ctx.fill();
-                // Blade 2 (offset below)
-                ctx.fillStyle = '#ff6600';
-                ctx.beginPath(); ctx.moveTo(off + 40, -4); ctx.lineTo(off + 58, -2); ctx.lineTo(off + 40, 4); ctx.fill();
-                // Ember particles
-                if (this.attackTimer > 0) {
-                    ctx.fillStyle = '#ffcc00'; ctx.globalAlpha = 0.6;
-                    ctx.fillRect(off + 55 + Math.random() * 15, -3 + Math.random() * 6, 3, 3);
-                    ctx.globalAlpha = 1;
+                    if (this.comboStep === 1) {
+                        // SPIN
+                        ctx.rotate(p * Math.PI * 4); // Fast spin
+                        chainLen = 70 + Math.sin(p * Math.PI) * 20;
+                    } else if (this.comboStep === 2) {
+                        // PULL (Throw far then retract)
+                        chainLen = Math.sin(p * Math.PI) * 130;
+                    } else {
+                        // SWING (Wide arc)
+                        let arc = Math.sin(p * Math.PI);
+                        chainLen = arc * 90;
+                        off = arc * 20;
+                    }
+
+                    // Draw Chain
+                    ctx.strokeStyle = '#555';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+
+                    // Wavy chain effect
+                    let segments = 10;
+                    for(let i=1; i<=segments; i++) {
+                        let t = i/segments;
+                        let wave = Math.sin(t * Math.PI * 2 + Date.now()/50) * 5 * (1-t);
+                        ctx.lineTo(chainLen * t, wave);
+                    }
+                    ctx.stroke();
+
+                    // Chain Links (Dots)
+                    ctx.fillStyle = '#888';
+                    for(let i=0; i<=segments; i++) {
+                        let t = i/segments;
+                        let wave = Math.sin(t * Math.PI * 2 + Date.now()/50) * 5 * (1-t);
+                        ctx.fillRect(chainLen * t - 2, wave - 2, 4, 4);
+                    }
+
+                    // Draw Blades at end
+                    ctx.translate(chainLen, 0);
+                    ctx.rotate(Math.PI / 2); // Blade perpendicular to chain for spin/swing
+
+                    // Blade Sprite
+                    ctx.fillStyle = '#ff4400';
+                    ctx.shadowBlur = 15; ctx.shadowColor = '#ff2200';
+
+                    // Main Blade
+                    ctx.beginPath();
+                    ctx.moveTo(-8, 0);
+                    ctx.quadraticCurveTo(10, -20, 30, -5); // Top curve
+                    ctx.lineTo(40, 0); // Tip
+                    ctx.quadraticCurveTo(20, 10, -8, 5); // Bottom
+                    ctx.fill();
+
+                    // Inner lighter part
+                    ctx.fillStyle = '#ffcc00';
+                    ctx.beginPath();
+                    ctx.moveTo(-5, 0);
+                    ctx.quadraticCurveTo(10, -10, 25, 0);
+                    ctx.quadraticCurveTo(10, 5, -5, 0);
+                    ctx.fill();
+
+                    // Embers
+                    if (Math.random() < 0.5) {
+                        ctx.fillStyle = '#ffffaa';
+                        ctx.fillRect(Math.random()*30, Math.random()*20 - 10, 3, 3);
+                    }
+                    ctx.shadowBlur = 0;
+
+                } else {
+                    // Idle - blades in hands
+                    ctx.fillStyle = '#ff4400';
+                    ctx.fillRect(10, -10, 20, 5);
+                    ctx.fillRect(10, 5, 20, 5);
                 }
             } else if (this.currentWeapon === 2) {
                 // MACHADO LEVIATÃ — heavy axe with ice glow
@@ -853,13 +969,6 @@ class Player extends Character {
             let armLen = 20 * (this.throwAnim / 15);
             ctx.fillRect(centerX + Math.cos(armAngle) * 10 - 3, centerY + Math.sin(armAngle) * 10 - 3, 6, 6);
         }
-
-        // Ira glow
-        if (this.mana > 50) {
-            ctx.globalAlpha = 0.15 + Math.sin(Date.now() / 150) * 0.08;
-            ctx.fillStyle = '#ff4400'; ctx.fillRect(dx - 3, dy - 3, this.w + 6, this.h + 6);
-            ctx.globalAlpha = 1;
-        }
     }
 }
 
@@ -910,20 +1019,26 @@ class Enemy extends Character {
 
         switch (this.type) {
             case 'SKELETON':
-                if (d < 550) {
+                if (d < 600) {
+                    // Move towards player
                     if (!this.isNearEdge(playerDir)) {
-                        if (playerDir > 0) { this.vx += 0.4; this.facingRight = true; } else { this.vx -= 0.4; this.facingRight = false; }
-                    } else { this.vx *= 0.5; }
-
-                    // Jump over obstacles
-                    if (this.isGrounded && Math.abs(this.vx) < 0.5 && Math.abs(player.x - this.x) > 30) {
-                         // Check if wall is blocking
-                         if ((playerDir > 0 && this.x < player.x) || (playerDir < 0 && this.x > player.x)) {
-                             this.vy = -11;
-                         }
+                        if (playerDir > 0) { this.vx += 0.5; this.facingRight = true; }
+                        else { this.vx -= 0.5; this.facingRight = false; }
+                    } else {
+                        this.vx *= 0.5; // Slow down at edge
                     }
 
-                    if (d < 50 && this.attackCooldown <= 0) { player.takeDamage(14); this.attackCooldown = 20; }
+                    // Jump over obstacles or gaps if stuck
+                    if (this.isGrounded) {
+                        // If we are trying to move but barely moving (stuck on wall)
+                        let stuck = Math.abs(this.vx) < 0.5 && Math.abs(player.x - this.x) > 50;
+                        if (stuck) {
+                            this.vy = -13; // Jump high
+                            this.vx = playerDir * 6; // Leap forward
+                        }
+                    }
+
+                    if (d < 50 && this.attackCooldown <= 0) { player.takeDamage(14); this.attackCooldown = 30; }
                 } else {
                     let patrolDir = this.vx >= 0 ? 1 : -1;
                     if (this.isNearEdge(patrolDir)) { this.vx = -patrolDir * this.speed; this.facingRight = patrolDir < 0; }
