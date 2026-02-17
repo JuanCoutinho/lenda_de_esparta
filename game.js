@@ -317,9 +317,13 @@ function updateCamera() {
     let targetY = player.y - height / 1.5;
     camera.x += (targetX - camera.x) * 0.1;
     camera.y += (targetY - camera.y) * 0.1;
+
+    // Cinematic Shake (Trauma-based feel)
     if (camera.shake > 0) {
-        camera.x += (Math.random() - 0.5) * camera.shake;
-        camera.y += (Math.random() - 0.5) * camera.shake;
+        let intensity = Math.pow(camera.shake, 1.5); // Non-linear shake for impact
+        if (intensity > 50) intensity = 50; // Cap
+        camera.x += (Math.random() - 0.5) * intensity;
+        camera.y += (Math.random() - 0.5) * intensity;
         camera.shake *= 0.9;
         if (camera.shake < 0.5) camera.shake = 0;
     }
@@ -620,6 +624,19 @@ function drawFrame() {
     }
 
     weather.draw(ctx, camera.x, camera.y);
+
+    // Cinematic Vignette & Grading
+    let grd = ctx.createRadialGradient(width/2, height/2, height/3, width/2, height/2, height);
+    grd.addColorStop(0, "rgba(0,0,0,0)");
+    grd.addColorStop(1, "rgba(0,0,0,0.5)"); // Dark corners
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, width, height);
+
+    // Color Grading (Cinematic Blue/Orange tint based on zone)
+    ctx.globalCompositeOperation = 'overlay';
+    ctx.fillStyle = currentZone >= 6 ? 'rgba(50, 0, 100, 0.15)' : 'rgba(20, 10, 0, 0.1)';
+    ctx.fillRect(0, 0, width, height);
+    ctx.globalCompositeOperation = 'source-over';
 
     // Apollo arrows draw
     apolloArrows.forEach(a => {
