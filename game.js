@@ -1,5 +1,6 @@
 // ===== MAIN GAME LOOP =====
 let player;
+let weather;
 
 // ===== ZONE ENEMY POOL =====
 function getEnemyTypeForZone(zone) {
@@ -122,6 +123,13 @@ function generateChunk() {
     // Wings drop in zone 1
     if (!player.hasWings && nextSpawnX - zoneStartX > 2500 && Math.random() < 0.04) {
         pickups.push(new Pickup(nextSpawnX - 50, lastPlatformY - 100, 'WINGS'));
+    }
+
+    // Generic Item Spawns (Health, Mana, Shield)
+    if (Math.random() < 0.15) {
+        let r = Math.random();
+        let type = r < 0.5 ? 'HEALTH' : (r < 0.8 ? 'MANA' : 'SHIELD');
+        pickups.push(new Pickup(nextSpawnX - 50 - Math.random() * 150, lastPlatformY - 80, type));
     }
 }
 
@@ -285,6 +293,14 @@ function advanceZone() {
     document.getElementById('zone-trans-sub').innerText = ZONE_DATA[currentZone - 1].name;
     transEl.style.display = 'flex';
     setTimeout(() => { transEl.style.display = 'none'; }, 2500);
+
+    // Weather update per zone
+    if (weather) {
+        if (currentZone === 2) weather.setWeather('RAIN', 0.6);
+        else if (currentZone === 4) weather.setWeather('FOG', 0.7);
+        else if (currentZone === 7) weather.setWeather('STORM', 0.8);
+        else weather.setWeather('NONE');
+    }
 }
 
 function startDLC() {
@@ -331,6 +347,9 @@ function init() {
     medusaCooldown = 0; bowCooldown = 0;
     apolloArrows = [];
 
+    weather = new WeatherSystem();
+    weather.setWeather('NONE'); // Zone 1 starts clear
+
     document.getElementById('zone-name').innerText = `Zona 1 — ${ZONE_DATA[0].name}`;
     document.getElementById('icon-wings').classList.remove('active');
     document.getElementById('icon-dash').classList.remove('active');
@@ -364,6 +383,7 @@ function loop() {
 
     player.update();
     updateCamera();
+    weather.update();
 
     // Generation
     if (!bossSpawned && camera.x + width * 1.5 > nextSpawnX) generateChunk();
@@ -598,6 +618,8 @@ function drawFrame() {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
         ctx.fillRect(0, 0, width, height);
     }
+
+    weather.draw(ctx, camera.x, camera.y);
 
     // Apollo arrows draw
     apolloArrows.forEach(a => {

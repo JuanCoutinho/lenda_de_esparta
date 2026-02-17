@@ -73,6 +73,7 @@ class Player extends Character {
         this.maxJumps = 2;        // max jumps (wings upgrade)
         this.airControl = 1;      // air control multiplier
         this.dashAttackWindow = 0; // frames after dash where attack does 2x
+        this.shieldTimer = 0;      // Temporary invincibility
     }
     update() {
         // Walk animation
@@ -173,6 +174,7 @@ class Player extends Character {
         if (this.throwCooldown > 0) this.throwCooldown--;
         if (this.dashCooldown > 0) this.dashCooldown--;
         if (this.throwAnim > 0) this.throwAnim--;
+        if (this.shieldTimer > 0) this.shieldTimer--;
 
         // Passive regen
         if (this.regenRate > 0 && this.health > 0 && this.health < this.maxHealth) {
@@ -189,7 +191,24 @@ class Player extends Character {
 
         pickups.forEach(p => {
             if (!p.collected && checkRectCollide(this, p)) {
-                if (p.type === 'WINGS') { this.hasWings = true; document.getElementById('icon-wings').classList.add('active'); document.getElementById('item-pickup').style.display = 'block'; gameState = 'PAUSED'; }
+                if (p.type === 'WINGS') {
+                    this.hasWings = true;
+                    document.getElementById('icon-wings').classList.add('active');
+                    document.getElementById('item-pickup').style.display = 'block';
+                    gameState = 'PAUSED';
+                } else if (p.type === 'HEALTH') {
+                    this.health = Math.min(this.maxHealth, this.health + 50);
+                    spawnSpark(this.x + this.w/2, this.y, 15, '#ff4444');
+                    spawnDamageNumber(this.x + this.w/2, this.y - 20, 'HP', '#ff4444');
+                } else if (p.type === 'MANA') {
+                    this.mana = Math.min(100, this.mana + 50);
+                    spawnSpark(this.x + this.w/2, this.y, 15, '#4444ff');
+                    spawnDamageNumber(this.x + this.w/2, this.y - 20, 'IRA', '#4444ff');
+                } else if (p.type === 'SHIELD') {
+                    this.shieldTimer = 600; // 10 seconds
+                    spawnSpark(this.x + this.w/2, this.y, 20, '#88aaff');
+                    spawnDamageNumber(this.x + this.w/2, this.y - 20, 'ESCUDO', '#88aaff');
+                }
                 p.collected = true;
             }
         });
@@ -589,6 +608,11 @@ class Player extends Character {
         camera.shake = 4;
     }
     takeDamage(amount) {
+        if (this.shieldTimer > 0) {
+            spawnSpark(this.x + this.w/2, this.y + this.h/2, 5, '#88aaff');
+            spawnDamageNumber(this.x + this.w/2, this.y - 10, 'BLOCK', '#88aaff');
+            return;
+        }
         // I-frames during dash
         if (this.isDashing) {
             spawnSpark(this.x + this.w / 2, this.y + this.h / 2, 6, '#88ccff');
@@ -666,6 +690,17 @@ class Player extends Character {
         if (isFlash) this.flash--;
         let bobY = 0;
         if (this.isGrounded && Math.abs(this.vx) > 0.5) bobY = Math.sin(this.walkTimer * 0.5) * 2;
+
+        // Shield Aura
+        if (this.shieldTimer > 0) {
+            ctx.shadowBlur = 10; ctx.shadowColor = '#88aaff';
+            ctx.strokeStyle = `rgba(136, 170, 255, ${0.5 + Math.sin(Date.now()/100)*0.3})`;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 35, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
 
         // Wings
         if (this.isGliding || (this.hasWings && !this.isGrounded && this.jumpCount >= 2)) {
@@ -879,6 +914,15 @@ class Enemy extends Character {
                     if (!this.isNearEdge(playerDir)) {
                         if (playerDir > 0) { this.vx += 0.4; this.facingRight = true; } else { this.vx -= 0.4; this.facingRight = false; }
                     } else { this.vx *= 0.5; }
+
+                    // Jump over obstacles
+                    if (this.isGrounded && Math.abs(this.vx) < 0.5 && Math.abs(player.x - this.x) > 30) {
+                         // Check if wall is blocking
+                         if ((playerDir > 0 && this.x < player.x) || (playerDir < 0 && this.x > player.x)) {
+                             this.vy = -11;
+                         }
+                    }
+
                     if (d < 50 && this.attackCooldown <= 0) { player.takeDamage(14); this.attackCooldown = 20; }
                 } else {
                     let patrolDir = this.vx >= 0 ? 1 : -1;
@@ -887,14 +931,27 @@ class Enemy extends Character {
                 }
                 this.applyPhysics(); break;
             case 'HARPY':
-                if (d < 550) {
-                    this.vx += (playerDir * 0.5); this.y += Math.sin(toPlayer) * 2.5; this.facingRight = playerDir > 0;
-                    if (d < 45 && this.attackCooldown <= 0) { player.takeDamage(12); this.attackCooldown = 15; }
+                if (d < 600) {
+                    let targetY = player.y - 60;
+                    if (d < 200) targetY = player.y; // Swoop
+
+                    this.vy += (targetY - this.y) * 0.02;
+                    this.vx += (playerDir * 0.4);
+
+                    // Cap velocity
+                    if (this.vx > 6) this.vx = 6; if (this.vx < -6) this.vx = -6;
+                    if (this.vy > 4) this.vy = 4; if (this.vy < -4) this.vy = -4;
+
+                    this.facingRight = playerDir > 0;
+                    if (d < 45 && this.attackCooldown <= 0) { player.takeDamage(12); this.attackCooldown = 30; this.vy = -6; }
                 } else {
                     if (this.x > this.patrolStart + this.patrolDist) this.vx = -this.speed;
                     else if (this.x < this.patrolStart - this.patrolDist) this.vx = this.speed;
+                    this.y += Math.sin(Date.now() / 200) * 0.5;
                 }
-                this.x += this.vx; this.vx *= 0.93; this.y += Math.sin(Date.now() / 200) * 0.5; this.facingRight = player.x > this.x; break;
+                this.x += this.vx; this.vx *= 0.95;
+                if (this.isGrounded) this.vy = -2; // Don't sit on ground
+                break;
             case 'MINOTAURO':
                 if (d < 450 && !this.charging && this.attackCooldown <= 0) { this.charging = true; this.chargeTimer = 50; this.facingRight = playerDir > 0; }
                 if (this.charging) {
@@ -970,42 +1027,91 @@ class Enemy extends Character {
         let isFlash = this.flash > 0;
         if (isFlash) this.flash--;
         let anim = this.animTimer;
+        let f = this.facingRight ? 1 : -1;
 
         switch (this.type) {
             case 'SKELETON':
-                ctx.fillStyle = isFlash ? '#fff' : '#e8e0d0'; ctx.fillRect(dx + 5, dy, 20, 16);
-                ctx.fillStyle = '#000'; ctx.fillRect(dx + 8, dy + 5, 5, 5); ctx.fillRect(dx + 17, dy + 5, 5, 5);
-                ctx.fillStyle = isFlash ? '#fff' : '#ff4444'; ctx.fillRect(dx + 9, dy + 6, 3, 3); ctx.fillRect(dx + 18, dy + 6, 3, 3);
-                ctx.fillStyle = isFlash ? '#fff' : '#d0c8b8'; ctx.fillRect(dx + 8, dy + 12, 14, 5);
-                ctx.fillStyle = isFlash ? '#fff' : '#d4ccc0'; ctx.fillRect(dx + 6, dy + 18, 18, 14);
-                ctx.fillStyle = '#1a1a1a'; for (let i = 0; i < 3; i++) ctx.fillRect(dx + 10, dy + 20 + i * 4, 10, 2);
-                ctx.fillStyle = isFlash ? '#fff' : '#c8c0b0';
-                let sOff = Math.sin(anim * 2) * 2;
-                ctx.fillRect(dx + 8, dy + 33, 5, 12 + sOff); ctx.fillRect(dx + 17, dy + 33, 5, 12 - sOff);
-                ctx.fillStyle = '#888'; ctx.fillRect(dx + (this.facingRight ? 25 : -15), dy + 15, 3, 25);
+                // Skull
+                ctx.fillStyle = isFlash ? '#fff' : '#f0e8d0';
+                ctx.beginPath(); ctx.arc(dx + 15, dy + 8, 9, 0, Math.PI * 2); ctx.fill();
+                // Eyes
+                ctx.fillStyle = '#000';
+                ctx.beginPath(); ctx.arc(dx + 12 + (f*2), dy + 7, 2.5, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(dx + 18 + (f*2), dy + 7, 2.5, 0, Math.PI * 2); ctx.fill();
+                // Ribcage (spine and ribs)
+                ctx.strokeStyle = isFlash ? '#fff' : '#e0d8c0'; ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.moveTo(dx + 15, dy + 16); ctx.lineTo(dx + 15, dy + 32); ctx.stroke();
+                ctx.lineWidth = 2;
+                for(let i=0; i<3; i++) {
+                    ctx.beginPath(); ctx.moveTo(dx + 8, dy + 20 + i*4); ctx.lineTo(dx + 22, dy + 20 + i*4); ctx.stroke();
+                }
+                // Pelvis
+                ctx.fillStyle = isFlash ? '#fff' : '#e0d8c0'; ctx.fillRect(dx + 10, dy + 32, 10, 4);
+                // Legs
+                let walkS = Math.sin(anim * 4) * 3;
+                ctx.strokeStyle = isFlash ? '#fff' : '#d0c8b0'; ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.moveTo(dx + 12, dy + 36); ctx.lineTo(dx + 10 - walkS, dy + 44); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(dx + 18, dy + 36); ctx.lineTo(dx + 20 + walkS, dy + 44); ctx.stroke();
+                // Sword
+                ctx.save(); ctx.translate(dx + 15 + f*10, dy + 20); ctx.rotate(f * 0.5 + Math.sin(anim*2)*0.2);
+                ctx.fillStyle = '#888'; ctx.fillRect(0, -10, 3, 25); ctx.fillRect(-4, 10, 11, 2);
+                ctx.restore();
                 break;
+
             case 'HARPY':
-                let wf = Math.sin(Date.now() / 60) * 12;
+                let wingFlap = Math.sin(Date.now() / 50) * 15;
+                // Wings (Back)
+                ctx.fillStyle = isFlash ? '#fff' : '#335588';
+                ctx.beginPath(); ctx.moveTo(dx + 15, dy + 15); ctx.lineTo(dx + 15 - f*25, dy - 10 + wingFlap); ctx.lineTo(dx + 15 - f*5, dy + 20); ctx.fill();
+                // Body
                 ctx.fillStyle = isFlash ? '#fff' : '#5577aa';
-                ctx.beginPath(); ctx.moveTo(dx + 15, dy + 12); ctx.lineTo(dx - 15, dy + wf); ctx.lineTo(dx - 5, dy + 15); ctx.fill();
-                ctx.beginPath(); ctx.moveTo(dx + 15, dy + 12); ctx.lineTo(dx + 45, dy + wf); ctx.lineTo(dx + 35, dy + 15); ctx.fill();
-                ctx.fillStyle = isFlash ? '#fff' : '#8899bb'; ctx.fillRect(dx + 8, dy + 8, 14, 16);
-                ctx.fillStyle = isFlash ? '#fff' : '#aabbdd'; ctx.fillRect(dx + 9, dy, 12, 10);
-                ctx.fillStyle = '#ff0'; ctx.fillRect(dx + 11, dy + 3, 3, 3); ctx.fillRect(dx + 17, dy + 3, 3, 3);
-                ctx.fillStyle = '#554'; ctx.fillRect(dx + 8, dy + 24, 4, 6); ctx.fillRect(dx + 18, dy + 24, 4, 6);
+                ctx.beginPath(); ctx.ellipse(dx + 15, dy + 18, 10, 14, 0, 0, Math.PI*2); ctx.fill();
+                // Head
+                ctx.fillStyle = isFlash ? '#fff' : '#7799cc';
+                ctx.beginPath(); ctx.arc(dx + 15 + f*4, dy + 8, 8, 0, Math.PI * 2); ctx.fill();
+                // Beak
+                ctx.fillStyle = '#ffcc00';
+                ctx.beginPath(); ctx.moveTo(dx + 15 + f*8, dy + 5); ctx.lineTo(dx + 15 + f*18, dy + 10); ctx.lineTo(dx + 15 + f*8, dy + 12); ctx.fill();
+                // Eye
+                ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(dx + 15 + f*6, dy + 6, 3, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(dx + 15 + f*7, dy + 6, 1, 0, Math.PI * 2); ctx.fill();
+                // Talons
+                ctx.fillStyle = '#aa8844';
+                let hBob = Math.sin(anim*2)*2;
+                ctx.fillRect(dx + 12, dy + 30 + hBob, 3, 6); ctx.fillRect(dx + 18, dy + 30 - hBob, 3, 6);
                 break;
+
             case 'MINOTAURO':
-                ctx.fillStyle = isFlash ? '#fff' : '#8b6914';
-                ctx.beginPath(); ctx.moveTo(dx, dy + 10); ctx.lineTo(dx - 8, dy - 8); ctx.lineTo(dx + 8, dy + 5); ctx.fill();
-                ctx.beginPath(); ctx.moveTo(dx + this.w, dy + 10); ctx.lineTo(dx + this.w + 8, dy - 8); ctx.lineTo(dx + this.w - 8, dy + 5); ctx.fill();
-                ctx.fillStyle = isFlash ? '#fff' : '#6b3a2a'; ctx.fillRect(dx + 5, dy, this.w - 10, 18);
-                ctx.fillStyle = this.charging ? '#ff0000' : '#ff6600'; ctx.fillRect(dx + 10, dy + 4, 5, 4); ctx.fillRect(dx + this.w - 15, dy + 4, 5, 4);
-                ctx.fillStyle = isFlash ? '#fff' : '#7b4a3a'; ctx.fillRect(dx + 2, dy + 18, this.w - 4, 24);
-                ctx.fillStyle = isFlash ? '#fff' : '#6b3a2a';
-                let mOff = this.charging ? Math.sin(anim * 6) * 4 : Math.sin(anim * 2) * 2;
-                ctx.fillRect(dx + 5, dy + 42, 12, 13 + mOff); ctx.fillRect(dx + this.w - 17, dy + 42, 12, 13 - mOff);
-                if (this.charging) { ctx.globalAlpha = 0.3; ctx.fillStyle = '#ff2200'; ctx.fillRect(dx - 8, dy - 5, this.w + 16, this.h + 10); ctx.globalAlpha = 1; }
+                // Body
+                ctx.fillStyle = isFlash ? '#fff' : '#8b5a2b';
+                ctx.fillRect(dx + 8, dy + 15, 28, 25); // torso
+                // Legs
+                let mWalk = Math.sin(anim * 3) * 4;
+                ctx.fillRect(dx + 8, dy + 40, 10, 15 + mWalk);
+                ctx.fillRect(dx + 24, dy + 40, 10, 15 - mWalk);
+                ctx.fillStyle = '#111'; // hooves
+                ctx.fillRect(dx + 7, dy + 52 + mWalk, 12, 3);
+                ctx.fillRect(dx + 23, dy + 52 - mWalk, 12, 3);
+                // Head
+                ctx.fillStyle = isFlash ? '#fff' : '#6b4226';
+                ctx.beginPath(); ctx.arc(dx + 22 + f*5, dy + 12, 12, 0, Math.PI*2); ctx.fill();
+                // Snout
+                ctx.fillStyle = '#5a3825';
+                ctx.fillRect(dx + 22 + f*8, dy + 12, 10, 8);
+                // Horns
+                ctx.fillStyle = '#e8dcb5';
+                ctx.beginPath(); ctx.moveTo(dx + 22 + f*2, dy + 5); ctx.lineTo(dx + 22 + f*8, dy - 8); ctx.lineTo(dx + 22 + f*12, dy + 5); ctx.fill(); // Front horn
+                ctx.beginPath(); ctx.moveTo(dx + 22 - f*5, dy + 5); ctx.lineTo(dx + 22 - f*10, dy - 8); ctx.lineTo(dx + 22, dy + 5); ctx.fill(); // Back horn
+                // Eye
+                ctx.fillStyle = this.charging ? '#ff0000' : '#ffaa00';
+                ctx.fillRect(dx + 22 + f*6, dy + 8, 4, 3);
+                // Axe
+                ctx.save(); ctx.translate(dx + 22 + f*15, dy + 30); ctx.rotate(Math.sin(anim*3)*0.5);
+                ctx.fillStyle = '#654321'; ctx.fillRect(-2, -20, 4, 40); // handle
+                ctx.fillStyle = '#888'; ctx.beginPath(); ctx.moveTo(-2, -15); ctx.lineTo(-10, -25); ctx.lineTo(-2, -5); ctx.fill(); // blade
+                ctx.restore();
                 break;
+
             case 'MEDUSA':
                 ctx.fillStyle = isFlash ? '#fff' : '#00cc44';
                 for (let i = 0; i < 7; i++) { let sx = dx + 3 + i * 4, sw = Math.sin(anim * 3 + i * 1.2) * 6; ctx.fillRect(sx, dy - 6 + sw, 3, 10); }
