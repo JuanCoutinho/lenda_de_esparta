@@ -411,11 +411,22 @@ class Pickup {
         if (this.collected) return;
         if (this.x - cx < -50 || this.x - cx > width + 50) return;
         let dx = this.x - cx + this.w / 2, dy = this.y - cy + this.h / 2 + this.floatY;
-        ctx.shadowBlur = 20; ctx.shadowColor = 'gold';
-        ctx.strokeStyle = 'rgba(255,215,0,0.5)'; ctx.lineWidth = 2;
+
+        let color = 'gold';
+        let emoji = '🪽';
+
+        if (this.type === 'HEALTH') { color = '#ff4444'; emoji = '❤️'; }
+        else if (this.type === 'MANA') { color = '#4444ff'; emoji = '🔵'; }
+        else if (this.type === 'SHIELD') { color = '#88aaff'; emoji = '🛡️'; }
+
+        ctx.shadowBlur = 20; ctx.shadowColor = color;
+        ctx.strokeStyle = color; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(dx, dy, 18 + Math.sin(this.floatTimer * 2) * 3, 0, Math.PI * 2); ctx.stroke();
-        ctx.fillStyle = 'gold';
-        ctx.font = '24px serif'; ctx.fillText('🪽', dx - 12, dy + 8);
+
+        ctx.font = '24px serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(emoji, dx, dy);
         ctx.shadowBlur = 0;
     }
 }
@@ -456,4 +467,95 @@ function updateAndDrawSlashEffects(ctx, cx, cy) {
         ctx.restore();
     }
     ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+}
+
+// ===== WEATHER SYSTEM =====
+class WeatherSystem {
+    constructor() {
+        this.type = 'NONE'; // NONE, RAIN, FOG, STORM
+        this.particles = [];
+        this.fogAlpha = 0;
+        this.lightningTimer = 0;
+        this.intensity = 0;
+    }
+
+    setWeather(type, intensity = 0.5) {
+        this.type = type;
+        this.intensity = intensity;
+        this.particles = [];
+        this.fogAlpha = 0;
+    }
+
+    update() {
+        if (this.type === 'NONE') return;
+
+        // Rain / Storm
+        if (this.type === 'RAIN' || this.type === 'STORM') {
+            // Spawn rain
+            let count = this.type === 'STORM' ? 10 : 4;
+            for (let i = 0; i < count; i++) {
+                this.particles.push({
+                    x: camera.x - 100 + Math.random() * (width + 200),
+                    y: camera.y - 100 + Math.random() * -100,
+                    vy: 15 + Math.random() * 10,
+                    len: 20 + Math.random() * 20,
+                    w: 1 + Math.random() * 1
+                });
+            }
+        }
+
+        // Lightning in Storm
+        if (this.type === 'STORM') {
+            if (this.lightningTimer > 0) this.lightningTimer--;
+            else if (Math.random() < 0.005) {
+                this.lightningTimer = 10;
+                // Flash screen
+            }
+        }
+
+        // Update particles
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            let p = this.particles[i];
+            p.y += p.vy;
+            p.x -= 2; // slight wind
+            if (p.y > camera.y + height + 100) this.particles.splice(i, 1);
+        }
+
+        // Fog
+        if (this.type === 'FOG') {
+            this.fogAlpha = Math.min(this.intensity, this.fogAlpha + 0.01);
+        } else {
+            this.fogAlpha = Math.max(0, this.fogAlpha - 0.01);
+        }
+    }
+
+    draw(ctx, cx, cy) {
+        if (this.type === 'NONE' && this.particles.length === 0 && this.fogAlpha <= 0) return;
+
+        // Draw Rain
+        ctx.strokeStyle = 'rgba(170, 190, 255, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let p of this.particles) {
+            let dx = p.x - cx;
+            let dy = p.y - cy;
+            if (dx > -50 && dx < width + 50 && dy > -50 && dy < height + 50) {
+                ctx.moveTo(dx, dy);
+                ctx.lineTo(dx - 1, dy + p.len);
+            }
+        }
+        ctx.stroke();
+
+        // Draw Fog
+        if (this.fogAlpha > 0) {
+            ctx.fillStyle = `rgba(200, 200, 220, ${this.fogAlpha})`;
+            ctx.fillRect(0, 0, width, height);
+        }
+
+        // Draw Lightning Flash
+        if (this.lightningTimer > 0) {
+            ctx.fillStyle = `rgba(255, 255, 255, ${this.lightningTimer / 20})`;
+            ctx.fillRect(0, 0, width, height);
+        }
+    }
 }
