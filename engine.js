@@ -85,7 +85,15 @@ window.addEventListener('mousemove', e => { const r = canvas.getBoundingClientRe
 window.addEventListener('mousedown', e => {
     if (gameState === 'PLAYING') {
         if (e.button === 0) player.attack();
-        else if (e.button === 2) player.throwSpear();
+        else if (e.button === 2) player.isAiming = true;
+    }
+});
+window.addEventListener('mouseup', e => {
+    if (gameState === 'PLAYING') {
+        if (e.button === 2 && player.isAiming) {
+            player.throwSpear();
+            player.isAiming = false;
+        }
     }
 });
 window.addEventListener('wheel', e => {

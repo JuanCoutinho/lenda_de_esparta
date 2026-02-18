@@ -1,6 +1,285 @@
 // ===== MAIN GAME LOOP =====
 let player;
 let weather;
+let decorations = [];
+
+class Decoration {
+    constructor(x, y, type) {
+        this.x = x; this.y = y; this.type = type;
+        this.w = 0; this.h = 0;
+        if (type === 'GRASS') { this.w = 20; this.h = 10; }
+        else if (type === 'ROCK') { this.w = 30; this.h = 20; }
+        else if (type === 'RUIN') { this.w = 40; this.h = 80; }
+        else if (type === 'CHAIN') { this.w = 10; this.h = 100; }
+    }
+    draw(ctx, cx, cy) {
+        if (this.x - cx < -100 || this.x - cx > width + 100) return;
+        let dx = this.x - cx, dy = this.y - cy;
+
+        if (this.type === 'GRASS') {
+            ctx.fillStyle = '#4a6b2e';
+            ctx.beginPath();
+            ctx.moveTo(dx, dy); ctx.lineTo(dx+5, dy-10); ctx.lineTo(dx+10, dy);
+            ctx.moveTo(dx+8, dy); ctx.lineTo(dx+12, dy-8); ctx.lineTo(dx+16, dy);
+            ctx.fill();
+        } else if (this.type === 'ROCK') {
+            ctx.fillStyle = '#555';
+            ctx.beginPath();
+            ctx.moveTo(dx, dy); ctx.lineTo(dx+10, dy-15); ctx.lineTo(dx+25, dy-10); ctx.lineTo(dx+30, dy);
+            ctx.fill();
+        } else if (this.type === 'RUIN') {
+            ctx.fillStyle = '#666';
+            ctx.fillRect(dx, dy - 80, 20, 80);
+            ctx.fillStyle = '#555';
+            ctx.fillRect(dx-5, dy - 85, 30, 10);
+            ctx.fillRect(dx-2, dy - 5, 24, 5);
+        } else if (this.type === 'CHAIN') {
+            ctx.strokeStyle = '#222'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(dx, dy); ctx.lineTo(dx, dy + 100); ctx.stroke();
+        }
+    }
+}
+
+// ===== MAGIC PROJECTILE =====
+class MagicProjectile {
+    constructor(x, y, angle, blessing) {
+        this.x = x; this.y = y;
+        this.vx = Math.cos(angle) * 14; this.vy = Math.sin(angle) * 14;
+        this.life = 80;
+        this.blessing = blessing;
+        this.color = blessing === 'ares' ? '#ff4400' : blessing === 'poseidon' ? '#aaddff' : '#88ccff'; // Default Zeus
+        this.trail = [];
+        this.active = true;
+    }
+    update() {
+        this.x += this.vx; this.y += this.vy; this.life--;
+        this.trail.push({x: this.x, y: this.y, life: 1});
+        if(this.trail.length > 10) this.trail.shift();
+        this.trail.forEach(t => t.life -= 0.1);
+
+        if(this.life <= 0) this.active = false;
+
+        // Hit logic
+        let targets = [...enemies];
+        if(currentBoss && currentBoss.health > 0) targets.push(currentBoss);
+        for(let e of targets) {
+            if(e.health > 0 && checkPointInRect(this.x, this.y, e.x, e.y, e.w, e.h)) {
+                e.takeDamage(35 + (player.mana > 50 ? 15 : 0)); // Magic dmg
+                if(player) player.blessingHitEffect(e, this.x, this.y);
+                this.active = false;
+                spawnSpark(this.x, this.y, 15, this.color);
+                camera.shake = 3;
+                return;
+            }
+        }
+        platforms.forEach(p => {
+            if(checkPointInRect(this.x, this.y, p.x, p.y, p.w, p.h)) {
+                this.active = false;
+                spawnSpark(this.x, this.y, 5, this.color);
+            }
+        });
+    }
+    draw(ctx, cx, cy) {
+        // Draw trail
+        this.trail.forEach(t => {
+            ctx.globalAlpha = t.life * 0.5;
+            ctx.fillStyle = this.color;
+            ctx.fillRect(t.x - cx, t.y - cy, 4, 4);
+        });
+        ctx.globalAlpha = 1;
+        // Draw Bolt
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(this.x - cx, this.y - cy, 5, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 10; ctx.shadowColor = this.color;
+        ctx.strokeStyle = this.color; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(this.x - cx, this.y - cy, 8, 0, Math.PI*2); ctx.stroke();
+        ctx.shadowBlur = 0;
+    }
+}
+
+// ===== THROWN SPEAR (magic return) =====
+class ThrownSpear {
+    constructor(x, y, angle, dmg, blessing) {
+        this.x = x; this.y = y;
+        this.vx = Math.cos(angle) * 22; this.vy = Math.sin(angle) * 22;
+        this.angle = angle; this.dmg = dmg || 30;
+        this.blessing = blessing || null;
+        this.state = 'FLYING'; // FLYING, STUCK, RETURNING
+        this.stuckTimer = 0;
+        this.trail = [];
+        this.hitTargets = new Set();
+        this.color = blessing === 'zeus' ? '#88ccff' : blessing === 'ares' ? '#ff4400' : blessing === 'poseidon' ? '#aaddff' : 'cyan';
+    }
+    update() {
+        if (this.state === 'FLYING') {
+            this.trail.push({ x: this.x, y: this.y, life: 1 });
+            if (this.trail.length > 10) this.trail.shift();
+            this.trail.forEach(t => t.life -= 0.1);
+
+            this.x += this.vx; this.y += this.vy;
+            this.vy += 0.3; // gravity
+            this.angle = Math.atan2(this.vy, this.vx);
+
+            // Blessing trail particles
+            if (this.blessing && Math.random() < 0.5) {
+                spawnSpark(this.x + (Math.random() - 0.5) * 8, this.y + (Math.random() - 0.5) * 8, 1, this.color);
+            }
+
+            // Hit enemies while flying
+            let targets = [...enemies];
+            if (currentBoss && currentBoss.health > 0) targets.push(currentBoss);
+            for (let e of targets) {
+                if (e.health > 0 && !this.hitTargets.has(e) && checkPointInRect(this.x, this.y, e.x, e.y, e.w, e.h)) {
+                    e.takeDamage(this.dmg);
+                    e.vx = Math.cos(this.angle) * 8;
+                    e.vy = -5;
+                    this.hitTargets.add(e);
+                    camera.shake = 6;
+                    hitFreeze = 5;
+                    spawnSpark(this.x, this.y, 8, this.color);
+                    spawnBlood(this.x, this.y, 6);
+                    // Blessing effect on hit
+                    if (this.blessing) player.blessingHitEffect(e, this.x, this.y);
+                }
+            }
+
+            // Hit platform -> stick + blessing explosion
+            for (let p of platforms) {
+                if (checkPointInRect(this.x, this.y, p.x, p.y, p.w, p.h)) {
+                    this.state = 'STUCK';
+                    this.vx = 0; this.vy = 0;
+                    this.stuckTimer = 180; // 3 seconds — player can jump on it!
+                    spawnSpark(this.x, this.y, 10, this.color);
+                    camera.shake = 4;
+                    // Blessing impact explosion
+                    if (this.blessing === 'zeus') {
+                        for (let i = 0; i < 6; i++) spawnSpark(this.x + (Math.random() - 0.5) * 60, this.y - Math.random() * 80, 4, '#88ccff');
+                        spawnSlash(this.x, this.y, -Math.PI / 2, 100, '#88ccff');
+                    } else if (this.blessing === 'ares') {
+                        for (let a = 0; a < Math.PI * 2; a += 0.5) spawnSpark(this.x + Math.cos(a) * 40, this.y + Math.sin(a) * 40, 3, '#ff4400');
+                        spawnSlash(this.x, this.y, 0, 80, '#ff4400');
+                    } else if (this.blessing === 'poseidon') {
+                        for (let i = 0; i < 8; i++) spawnSpark(this.x + (Math.random() - 0.5) * 80, this.y + (Math.random() - 0.5) * 80, 3, '#aaddff');
+                    }
+                    break;
+                }
+            }
+
+            // Flies off screen
+            if (this.y > lastPlatformY + 500) {
+                this.state = 'RETURNING';
+            }
+        }
+        else if (this.state === 'STUCK') {
+            this.stuckTimer--;
+            if (this.stuckTimer <= 0) {
+                this.state = 'RETURNING';
+                spawnSpark(this.x, this.y, 8, this.color);
+            }
+        }
+        else if (this.state === 'RETURNING') {
+            let px = player.x + player.w / 2;
+            let py = player.y + player.h / 2;
+            let angle = Math.atan2(py - this.y, px - this.x);
+            let speed = 25;
+            this.vx = Math.cos(angle) * speed;
+            this.vy = Math.sin(angle) * speed;
+            this.x += this.vx; this.y += this.vy;
+            this.angle = angle + Math.PI;
+
+            this.trail.push({ x: this.x, y: this.y, life: 1 });
+            if (this.trail.length > 10) this.trail.shift();
+            this.trail.forEach(t => t.life -= 0.1);
+
+            // Hit enemies on return path too
+            let targets2 = [...enemies];
+            if (currentBoss && currentBoss.health > 0) targets2.push(currentBoss);
+            for (let e of targets2) {
+                if (e.health > 0 && !this.hitTargets.has(e) && checkPointInRect(this.x, this.y, e.x, e.y, e.w, e.h)) {
+                    e.takeDamage(this.dmg * 0.6);
+                    this.hitTargets.add(e);
+                    spawnSpark(this.x, this.y, 5, this.color);
+                    if (this.blessing) player.blessingHitEffect(e, this.x, this.y);
+                }
+            }
+
+            // Reached player
+            let d = dist(this.x, this.y, px, py);
+            if (d < 40) {
+                thrownSpear = null;
+                player.throwCooldown = 0;
+                spawnSpark(px, py, 6, this.color);
+                return;
+            }
+        }
+    }
+    draw(ctx, cx, cy) {
+        // Trail
+        for (let t of this.trail) {
+            if (t.life > 0) {
+                ctx.globalAlpha = t.life * 0.5;
+                ctx.fillStyle = this.color;
+                ctx.fillRect(t.x - cx - 2, t.y - cy - 1, 4, 2);
+            }
+        }
+        ctx.globalAlpha = 1;
+
+        let dx = this.x - cx, dy = this.y - cy;
+        ctx.save();
+        ctx.translate(dx, dy);
+        ctx.rotate(this.angle);
+
+        // Shaft
+        ctx.fillStyle = '#6d4c3d';
+        ctx.fillRect(-20, -2.5, 45, 5);
+        // Spearhead
+        ctx.fillStyle = '#e0e0e0';
+        ctx.shadowBlur = 10; ctx.shadowColor = 'cyan';
+        ctx.beginPath();
+        ctx.moveTo(25, -6); ctx.lineTo(40, 0); ctx.lineTo(25, 6);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Glow when stuck and about to return
+        if (this.state === 'STUCK') {
+            let pulse = Math.sin(Date.now() / 100) * 0.3 + 0.5;
+            ctx.globalAlpha = pulse;
+            ctx.strokeStyle = 'cyan'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.stroke();
+            ctx.globalAlpha = 1;
+        }
+
+        ctx.restore();
+    }
+}
+
+// ===== ENEMY PROJECTILE =====
+class EnemyProjectile {
+    constructor(x, y, vx, vy, dmg, color) {
+        this.x = x; this.y = y;
+        this.vx = vx; this.vy = vy;
+        this.dmg = dmg || 10; this.color = color || '#ff6600';
+        this.life = 150; this.active = true; this.size = 6;
+    }
+    update() {
+        this.x += this.vx; this.y += this.vy; this.life--;
+        if (this.life <= 0) this.active = false;
+        if (checkPointInRect(this.x, this.y, player.x, player.y, player.w, player.h)) {
+            player.takeDamage(this.dmg); this.active = false;
+        }
+        platforms.forEach(p => { if (checkPointInRect(this.x, this.y, p.x, p.y, p.w, p.h)) this.active = false; });
+    }
+    draw(ctx, cx, cy) {
+        let dx = this.x - cx, dy = this.y - cy;
+        if (dx < -20 || dx > width + 20) return;
+        ctx.shadowBlur = 10; ctx.shadowColor = this.color;
+        ctx.fillStyle = this.color;
+        ctx.beginPath(); ctx.arc(dx, dy, this.size, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(dx, dy, this.size * 0.3, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+}
 
 // ===== ZONE ENEMY POOL =====
 function getEnemyTypeForZone(zone) {
@@ -62,6 +341,18 @@ function generateChunk() {
         lastPlatformY = Math.max(100, Math.min(height - 50, lastPlatformY));
         chunkLength = 250 + Math.random() * 350; // wider platforms
         platforms.push(new Platform(nextSpawnX, lastPlatformY, chunkLength, 50));
+
+        // Decorations
+        let numDecor = Math.floor(chunkLength / 60);
+        for(let i=0; i<numDecor; i++) {
+            let dx = nextSpawnX + 20 + Math.random() * (chunkLength - 40);
+            if(Math.random() < 0.4) decorations.push(new Decoration(dx, lastPlatformY, 'GRASS'));
+            else if(Math.random() < 0.1) decorations.push(new Decoration(dx, lastPlatformY, 'ROCK'));
+            else if(Math.random() < 0.05) decorations.push(new Decoration(dx, lastPlatformY, 'RUIN'));
+        }
+        if(Math.random() < 0.3) { // Hanging chain
+            decorations.push(new Decoration(nextSpawnX + chunkLength * Math.random(), lastPlatformY + 50, 'CHAIN'));
+        }
 
         // Always spawn at least one enemy
         enemies.push(new Enemy(nextSpawnX + chunkLength * 0.3, lastPlatformY - 60, getEnemyTypeForZone(currentZone)));
@@ -142,6 +433,7 @@ function cleanupWorld() {
     pickups = pickups.filter(p => p.x > cullX);
     orbs = orbs.filter(o => o.x > cullX && o.life > 0);
     enemyProjectiles = enemyProjectiles.filter(p => p.active && p.x > cullX);
+    decorations = decorations.filter(d => d.x > cullX);
 }
 // ===== BUILD MENU =====
 let blessingsOwned = { zeus: false, ares: false, poseidon: false };
@@ -242,6 +534,21 @@ function buyOrEquipBlessing(name) {
     updateBuildUI();
 }
 
+function selectStyle(style) {
+    if (player) player.combatStyle = style;
+    document.querySelectorAll('.style-btn').forEach(b => {
+        b.style.border = '2px solid #555';
+        b.style.boxShadow = 'none';
+    });
+    let btnId = style === 'MELEE' ? 'btn-melee' : style === 'RANGED' ? 'btn-ranged' : 'btn-magic';
+    let color = style === 'MELEE' ? '#ff4444' : style === 'RANGED' ? '#ffcc00' : '#88ccff';
+    let btn = document.getElementById(btnId);
+    if(btn) {
+        btn.style.border = '2px solid ' + color;
+        btn.style.boxShadow = '0 0 10px ' + color;
+    }
+}
+
 function buyUpgrade(type) {
     let up = UPGRADES[type];
     let lvl = up.current;
@@ -333,7 +640,8 @@ function updateCamera() {
 function init() {
     player = new Player();
     platforms = []; enemies = []; pickups = []; particles = [];
-    projectiles = []; orbs = []; enemyProjectiles = [];
+    decorations = [];
+    projectiles = []; magicProjectiles = []; orbs = []; enemyProjectiles = [];
     damageNumbers = []; slashEffects = []; hitFreeze = 0;
     thrownSpear = null;
     nextSpawnX = 0; currentZone = 1; zoneStartX = 0;
@@ -474,6 +782,13 @@ function loop() {
         if (!p.active) projectiles.splice(i, 1);
     }
 
+    // Magic Projectiles (Arcane Style)
+    for(let i = magicProjectiles.length - 1; i >= 0; i--) {
+        let p = magicProjectiles[i];
+        p.update();
+        if(!p.active) magicProjectiles.splice(i, 1);
+    }
+
     // Apollo arrows
     for (let i = apolloArrows.length - 1; i >= 0; i--) {
         let a = apolloArrows[i];
@@ -601,7 +916,16 @@ function drawFrame() {
         }
     }
 
+    // Foreground Parallax (Depth)
+    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+    for(let i=0; i<width; i+=150) {
+        let px = (camera.x * 1.2 + i) % (width + 300) - 150;
+        let py = height - 50 + Math.sin((camera.x + i)*0.01)*20;
+        ctx.beginPath(); ctx.arc(px, py, 60, 0, Math.PI*2); ctx.fill();
+    }
+
     platforms.forEach(p => p.draw(ctx, camera.x, camera.y));
+    decorations.forEach(d => d.draw(ctx, camera.x, camera.y));
     pickups.forEach(p => p.draw(ctx, camera.x, camera.y));
     orbs.forEach(o => o.draw(ctx, camera.x, camera.y));
     enemies.forEach(e => e.draw(ctx, camera.x, camera.y));
@@ -609,6 +933,7 @@ function drawFrame() {
     player.draw(ctx, camera.x, camera.y);
     if (thrownSpear) thrownSpear.draw(ctx, camera.x, camera.y);
     projectiles.forEach(p => p.draw(ctx, camera.x, camera.y));
+    magicProjectiles.forEach(p => p.draw(ctx, camera.x, camera.y));
     enemyProjectiles.forEach(p => p.draw(ctx, camera.x, camera.y));
     particles.forEach(p => p.draw(ctx, camera.x, camera.y));
 
