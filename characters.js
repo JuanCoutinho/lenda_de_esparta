@@ -48,6 +48,7 @@ class Player extends Character {
         this.aimAngle = 0; this.spearLength = 60;
         this.attackTimer = 0; this.attackDuration = 14;
         this.throwCooldown = 0; this.isClimbing = false;
+        this.isAiming = false;
         this.dashCooldown = 0; this.isDashing = false; this.dashTimer = 0;
         this.isGliding = false; this.baseDmg = 35;
         this.vampHeal = 0; this.dashDist = 0;
@@ -74,6 +75,7 @@ class Player extends Character {
         this.airControl = 1;      // air control multiplier
         this.dashAttackWindow = 0; // frames after dash where attack does 2x
         this.shieldTimer = 0;      // Temporary invincibility
+        this.combatStyle = 'MELEE'; // MELEE, RANGED, MAGIC
     }
     update() {
         // Walk animation
@@ -151,6 +153,7 @@ class Player extends Character {
 
         if (this.vx > BASE_MOVE_SPEED) this.vx = BASE_MOVE_SPEED;
         if (this.vx < -BASE_MOVE_SPEED) this.vx = -BASE_MOVE_SPEED;
+        if (this.isAiming) this.vx *= 0.5;
 
         if (!this.isClimbing) this.applyPhysics();
         else { this.x += this.vx; this.y += this.vy; }
@@ -238,6 +241,7 @@ class Player extends Character {
         let wep = WEAPONS[this.currentWeapon];
         let dmg = Math.floor(this.baseDmg * wep.dmgMult) + (this.mana > 50 ? 25 : 0);
         if (this.activeBlessing) dmg += 15;
+        if (this.combatStyle === 'MELEE') dmg = Math.floor(dmg * 1.3);
         if (this.dashAttackWindow > 0) { dmg *= 2; this.dashAttackWindow = 0; spawnSpark(this.x + this.w / 2, this.y + this.h / 2, 15, '#ffdd44'); }
         let aoeExtra = this.aoeBonus;
         let cx = this.x + this.w / 2, cy = this.y + this.h / 2;
@@ -507,6 +511,11 @@ class Player extends Character {
     }
     // ===== THROW (weapon-dependent) =====
     throwSpear() {
+        if (this.combatStyle === 'MAGIC') {
+            this.castSpell();
+            return;
+        }
+
         if (this.currentWeapon === 0) {
             // Lança throw (original)
             if (thrownSpear !== null || this.throwCooldown > 0) return;
@@ -515,7 +524,12 @@ class Player extends Character {
             let cx = this.x + this.w / 2, cy = this.y + this.h / 2;
             let dmg = this.baseDmg * 1.5 + (this.mana > 50 ? 30 : 0);
             if (this.activeBlessing) dmg += 25;
+            if (this.combatStyle === 'RANGED') dmg = Math.floor(dmg * 1.4);
+
             thrownSpear = new ThrownSpear(cx, cy, this.aimAngle, dmg, this.activeBlessing);
+            // Speed up if RANGED style
+            if (this.combatStyle === 'RANGED') { thrownSpear.vx *= 1.3; thrownSpear.vy *= 1.3; }
+
             spawnSpark(cx + Math.cos(this.aimAngle) * 20, cy + Math.sin(this.aimAngle) * 20, 10, this.getBlessingColor());
             camera.shake = 5;
             this.vx -= Math.cos(this.aimAngle) * 5; this.vy -= 2;
@@ -564,6 +578,18 @@ class Player extends Character {
             for (let a = 0; a < Math.PI * 2; a += 0.4) spawnSpark(cx + Math.cos(a) * 50, cy + Math.sin(a) * 50, 3, '#ffcc00');
         }
     }
+    castSpell() {
+        if (this.mana < 10) return; // Need mana
+        if (this.throwCooldown > 0) return;
+        this.mana -= 10;
+        this.throwCooldown = 25; // Faster than throw
+        this.throwAnim = 10;
+        let cx = this.x + this.w / 2, cy = this.y + this.h / 2;
+        magicProjectiles.push(new MagicProjectile(cx, cy, this.aimAngle, this.activeBlessing));
+        spawnSpark(cx + Math.cos(this.aimAngle) * 20, cy + Math.sin(this.aimAngle) * 20, 10, '#88ccff');
+        camera.shake = 3;
+    }
+
     // ===== SPECIAL ITEMS =====
     useMedusa() {
         if (!hasMedusaHead || medusaCooldown > 0) return;
@@ -794,7 +820,28 @@ class Player extends Character {
             ctx.beginPath(); ctx.arc(centerX, centerY, 35, 0, Math.PI * 2); ctx.stroke(); ctx.shadowBlur = 0;
         }
 
-        this.drawWeapon(ctx, centerX, centerY);
+        // Aim Trajectory
+        if (this.isAiming) {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            let tx = centerX, ty = centerY;
+            let tvx = Math.cos(this.aimAngle) * 22;
+            let tvy = Math.sin(this.aimAngle) * 22;
+            ctx.moveTo(tx, ty);
+            for(let i=0; i<15; i++) {
+                tx += tvx; ty += tvy; tvy += 0.3; // gravity matches spear
+                ctx.lineTo(tx, ty);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // Calculate shoulder position for weapon pivot (Right Arm Front)
+        let shoulderX = dx + 15 + f * 9 + 3; // +3 to center in arm
+        let shoulderY = dy + 16 + bobY + 3;
+        this.drawWeapon(ctx, shoulderX, shoulderY);
 
         // Ira glow
         if (this.mana > 50) {
@@ -817,7 +864,7 @@ class Player extends Character {
             }
 
             if (this.currentWeapon === 0) {
-                // LANÇA DE ESPARTA
+                // LANÇA DE ESPARTA (Revised)
                 if (this.attackTimer > 0) {
                     if (this.comboStep === 1 || (this.comboStep === 0 && this.comboTimer <= 0)) {
                         if (p < 0.3) off = (p / 0.3) * 50; else off = 50 * (1 - (p - 0.3) / 0.7);
@@ -825,14 +872,24 @@ class Player extends Character {
                         ctx.rotate(Math.sin(p * Math.PI) * 1.2);
                     } else { off = Math.sin(p * Math.PI) * 35; }
                 }
-                ctx.fillStyle = '#6d4c3d'; ctx.fillRect(off - 5, -2.5, this.spearLength + 5, 5);
-                ctx.fillStyle = '#8b7355';
-                for (let i = 5; i < this.spearLength - 10; i += 12) ctx.fillRect(off + i, -3, 4, 6);
-                ctx.fillStyle = this.mana > 50 ? '#ffd700' : '#C0C0C0';
+                // Shaft
+                ctx.strokeStyle = '#6d4c3d'; ctx.lineWidth = 5;
+                ctx.beginPath(); ctx.moveTo(off - 20, 0); ctx.lineTo(off + this.spearLength, 0); ctx.stroke();
+                // Decorations
+                ctx.fillStyle = '#b8860b';
+                ctx.fillRect(off + 10, -3, 8, 6); ctx.fillRect(off + 35, -3, 8, 6);
+                // Head
+                ctx.fillStyle = this.mana > 50 ? '#ffd700' : '#d0d0d0';
                 if (this.mana > 50) { ctx.shadowBlur = 12; ctx.shadowColor = '#ffaa00'; }
-                ctx.beginPath(); ctx.moveTo(off + this.spearLength, -7); ctx.lineTo(off + this.spearLength + 28, 0); ctx.lineTo(off + this.spearLength, 7); ctx.fill();
-                ctx.fillStyle = this.mana > 50 ? '#fff8e0' : '#e8e8e8';
-                ctx.beginPath(); ctx.moveTo(off + this.spearLength + 5, -3); ctx.lineTo(off + this.spearLength + 22, 0); ctx.lineTo(off + this.spearLength + 5, 3); ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(off + this.spearLength, -5);
+                ctx.lineTo(off + this.spearLength + 35, 0);
+                ctx.lineTo(off + this.spearLength, 5);
+                ctx.fill();
+                // Inner groove
+                ctx.strokeStyle = '#888'; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(off + this.spearLength + 5, 0); ctx.lineTo(off + this.spearLength + 25, 0); ctx.stroke();
+
             } else if (this.currentWeapon === 1) {
                 // LÂMINAS DO CAOS — dual chains with fiery blades
                 let chainLen = 0;
@@ -914,7 +971,7 @@ class Player extends Character {
                     ctx.fillRect(10, 5, 20, 5);
                 }
             } else if (this.currentWeapon === 2) {
-                // MACHADO LEVIATÃ — heavy axe with ice glow
+                // MACHADO LEVIATÃ (Revised)
                 if (this.attackTimer > 0) {
                     if (this.comboStep === 0 || (this.comboStep === 2 && this.comboTimer > 0)) {
                         ctx.rotate(Math.sin(p * Math.PI) * -0.8); // chop arc
@@ -925,39 +982,42 @@ class Player extends Character {
                     }
                 }
                 // Handle
-                ctx.fillStyle = '#5a3825'; ctx.fillRect(off - 5, -3, 45, 6);
-                ctx.fillStyle = '#7a5835';
-                ctx.fillRect(off, -2, 3, 4); ctx.fillRect(off + 15, -2, 3, 4); ctx.fillRect(off + 30, -2, 3, 4);
-                // Axe head
+                ctx.fillStyle = '#5a3825';
+                ctx.beginPath(); ctx.moveTo(off-10, -2); ctx.lineTo(off+45, -2); ctx.lineTo(off+45, 2); ctx.lineTo(off-10, 2); ctx.fill();
+                // Head
                 ctx.fillStyle = '#88ccff'; ctx.shadowBlur = 10; ctx.shadowColor = '#66aaff';
                 ctx.beginPath();
-                ctx.moveTo(off + 38, -12); ctx.lineTo(off + 55, -8); ctx.lineTo(off + 58, 0);
-                ctx.lineTo(off + 55, 8); ctx.lineTo(off + 38, 12); ctx.lineTo(off + 42, 0); ctx.fill();
-                // Ice edge highlight
-                ctx.fillStyle = '#cceeFF'; ctx.globalAlpha = 0.7;
-                ctx.beginPath(); ctx.moveTo(off + 42, -8); ctx.lineTo(off + 54, -4); ctx.lineTo(off + 55, 0);
-                ctx.lineTo(off + 54, 4); ctx.lineTo(off + 42, 8); ctx.lineTo(off + 44, 0); ctx.fill();
-                ctx.globalAlpha = 1;
+                ctx.moveTo(off+35, -4);
+                ctx.quadraticCurveTo(off+45, -15, off+55, -10); // Top curve
+                ctx.quadraticCurveTo(off+60, 0, off+55, 10); // Edge
+                ctx.quadraticCurveTo(off+45, 15, off+35, 4); // Bottom curve
+                ctx.lineTo(off+35, -4);
+                ctx.fill();
+                // Runes
+                ctx.strokeStyle = '#cceeFF'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(off+40, -5); ctx.lineTo(off+48, 0); ctx.lineTo(off+40, 5); ctx.stroke();
+
             } else if (this.currentWeapon === 3) {
-                // CESTUS DE NEMEIA — golden gauntlets
+                // CESTUS DE NEMEIA (Revised)
                 if (this.attackTimer > 0) {
                     if (this.comboStep === 0) { off = Math.sin(p * Math.PI) * 25; } // jab
                     else if (this.comboStep === 1) { off = Math.sin(p * Math.PI * 2) * 20; ctx.rotate(0.3); } // hook
                     else { ctx.rotate(-Math.sin(p * Math.PI) * 1.0); off = -Math.sin(p * Math.PI) * 10; } // uppercut
                 }
-                // Arm wrap
-                ctx.fillStyle = '#8B6914';
-                ctx.fillRect(off, -3, 20, 6);
-                // Gauntlet
+                // Lion Head shape
                 ctx.fillStyle = '#DAA520'; ctx.shadowBlur = 6; ctx.shadowColor = '#ffcc00';
-                ctx.fillRect(off + 18, -8, 16, 16);
-                // Knuckles
-                ctx.fillStyle = '#FFD700';
-                ctx.fillRect(off + 28, -6, 5, 4); ctx.fillRect(off + 28, 2, 5, 4);
-                ctx.fillRect(off + 26, -2, 5, 4);
-                // Lion face emblem
-                ctx.fillStyle = '#B8860B';
-                ctx.fillRect(off + 20, -4, 6, 8);
+                ctx.beginPath();
+                ctx.arc(off + 25, 0, 12, 0, Math.PI*2); // Head
+                ctx.fill();
+                // Mane/Ears
+                ctx.fillStyle = '#CD853F';
+                ctx.beginPath(); ctx.moveTo(off+15, -10); ctx.lineTo(off+25, -5); ctx.lineTo(off+35, -10); ctx.fill(); // Top mane
+                ctx.beginPath(); ctx.moveTo(off+15, 10); ctx.lineTo(off+25, 5); ctx.lineTo(off+35, 10); ctx.fill(); // Bot mane
+                // Face
+                ctx.fillStyle = '#8B4513';
+                ctx.beginPath(); ctx.arc(off + 28, -3, 2, 0, Math.PI*2); ctx.fill(); // Eye
+                ctx.beginPath(); ctx.arc(off + 28, 3, 2, 0, Math.PI*2); ctx.fill(); // Eye
+                ctx.fillRect(off + 32, -2, 4, 4); // Snout
             }
             ctx.shadowBlur = 0; ctx.restore();
         }
